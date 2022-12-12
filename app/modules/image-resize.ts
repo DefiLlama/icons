@@ -40,6 +40,9 @@ export function streamingResize(
   width: number | undefined,
   height: number | undefined,
   fit: keyof FitEnum,
+  cacheControl: string = "public, max-age=31536000, immutable",
+  cdnCacheControl: string = "public, max-age=31536000, immutable",
+  status: number = 200,
 ) {
   // create the sharp transform pipeline
   // https://sharp.pixelplumbing.com/api-resize
@@ -63,8 +66,10 @@ export function streamingResize(
   return new Response(passthroughStream as any, {
     headers: {
       "Content-Type": "image/webp",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": cacheControl,
+      "CDN-Cache-Control": cdnCacheControl,
     },
+    status,
   });
 }
 
@@ -97,18 +102,22 @@ export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
   return createReadStream(srcPath);
 }
 
-export function handleError(error: unknown) {
+export function handleError(error: unknown, width?: number, height?: number, fit: keyof sharp.FitEnum = "contain") {
   // error needs to be typed
   const errorT = error as Error & { code: string };
   // if the read stream fails, it will have the error.code ENOENT
   if (errorT.code === "ENOENT") {
-    return new Response("image not found", {
-      status: 404,
-      headers: {
-        "Content-Type": "text/plain",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-      },
-    });
+    const readStream = readFileAsStream("notfound", "assets");
+    // read the image from the file system and stream it through the sharp pipeline
+    return streamingResize(
+      readStream,
+      width,
+      height,
+      fit,
+      "no-cache, no-store, must-revalidate",
+      "no-cache, no-store, must-revalidate",
+      404,
+    );
   }
 
   // if there is an error processing the image, we return a 500 error
