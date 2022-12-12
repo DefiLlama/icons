@@ -40,8 +40,10 @@ export function streamingResize(
   width: number | undefined,
   height: number | undefined,
   fit: keyof FitEnum,
-  cacheControl: string = "public, max-age=31536000, immutable",
-  cdnCacheControl: string = "public, max-age=31536000, immutable",
+  headers: HeadersInit = {
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "CDN-Cache-Control": "public, max-age=31536000, immutable",
+  },
   status: number = 200,
 ) {
   // create the sharp transform pipeline
@@ -66,8 +68,7 @@ export function streamingResize(
   return new Response(passthroughStream as any, {
     headers: {
       "Content-Type": "image/webp",
-      "Cache-Control": cacheControl,
-      "CDN-Cache-Control": cdnCacheControl,
+      ...headers,
     },
     status,
   });
@@ -114,8 +115,10 @@ export function handleError(error: unknown, width?: number, height?: number, fit
       width,
       height,
       fit,
-      "no-cache, no-store, must-revalidate",
-      "no-cache, no-store, must-revalidate",
+      {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "CDN-Cache-Control": "no-cache, no-store, must-revalidate",
+      },
       404,
     );
   }
