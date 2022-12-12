@@ -12,6 +12,6 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     return streamingResize(readStream, width, height, fit);
   } catch (error: unknown) {
     // if the image is not found, or we get any other errors we return different response types
-    return handleError(error);
+    return handleError(error, width, height, fit);
   }
 };
