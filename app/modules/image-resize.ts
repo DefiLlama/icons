@@ -17,19 +17,12 @@ interface ResizeParams {
   fit: keyof FitEnum;
 }
 
-export function extractParams(
-  params: Params<string>,
-  request: Request
-): ResizeParams {
+export function extractParams(params: Params<string>, request: Request): ResizeParams {
   const src = params["*"] as string;
   const searchParams = new URL(request.url).searchParams;
 
-  const width = searchParams.has("w")
-    ? Number.parseInt(searchParams.get("w") ?? "0")
-    : undefined;
-  const height = searchParams.has("h")
-    ? Number.parseInt(searchParams.get("h") ?? "0")
-    : undefined;
+  const width = searchParams.has("w") ? Number.parseInt(searchParams.get("w") ?? "0") : undefined;
+  const height = searchParams.has("h") ? Number.parseInt(searchParams.get("h") ?? "0") : undefined;
 
   const fitEnum = ["contain", "cover", "fill", "inside", "outside"];
   let fit: keyof FitEnum = sharp.fit.contain;
@@ -46,7 +39,7 @@ export function streamingResize(
   imageStream: ReadStream,
   width: number | undefined,
   height: number | undefined,
-  fit: keyof FitEnum
+  fit: keyof FitEnum,
 ) {
   // create the sharp transform pipeline
   // https://sharp.pixelplumbing.com/api-resize

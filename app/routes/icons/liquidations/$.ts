@@ -1,10 +1,5 @@
 import type { LoaderArgs } from "@remix-run/node";
-import {
-  extractParams,
-  handleError,
-  readFileAsStream,
-  streamingResize,
-} from "~/modules/image-resize";
+import { extractParams, handleError, readFileAsStream, streamingResize } from "~/modules/image-resize";
 
 export const loader = async ({ params, request }: LoaderArgs) => {
   // extract all the parameters from the url
