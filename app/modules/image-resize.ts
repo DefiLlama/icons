@@ -74,9 +74,7 @@ export function streamingResize(
   });
 }
 
-export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
-  // Local filesystem
-
+export function getSrcPath(src: string, ASSETS_ROOT: string) {
   let srcPath = null;
 
   readdirSync(ASSETS_ROOT).forEach((file) => {
@@ -92,6 +90,14 @@ export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
   if (!srcPath) {
     srcPath = path.join(ASSETS_ROOT, src);
   }
+
+  return srcPath;
+}
+
+export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
+  // Local filesystem
+
+  const srcPath = getSrcPath(src, ASSETS_ROOT);
 
   const fileStat = statSync(srcPath);
 
