@@ -12,6 +12,11 @@ const octokit = new Octokit({
   auth: process.env.MINTY_ACCESS_TOKEN,
 });
 
+const headers = {
+  "Cache-Control": "public, max-age=31536000, immutable",
+  "CDN-Cache-Control": "public, max-age=31536000, immutable",
+};
+
 export const loader = async ({ params, request }: LoaderArgs) => {
   // extract all the parameters from the url
   const { src, width, height, fit } = extractParams(params, request);
@@ -20,7 +25,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     // read the image as a stream of bytes
     const readStream = readFileAsStream(src, "assets/nfts");
     // read the image from the file system and stream it through the sharp pipeline
-    return streamingResize(readStream, width, height, fit);
+    return streamingResize(readStream, width, height, fit, headers);
   } catch (error: unknown) {
     try {
       // if the image is not found, fetch collection's data from alchemy
@@ -54,11 +59,11 @@ export const loader = async ({ params, request }: LoaderArgs) => {
           content: resBuffer.toString("base64"),
         })
         .catch(() => {
-          return streamingResizeBuffer(resBuffer, width, height, fit);
+          return streamingResizeBuffer(resBuffer, width, height, fit, headers);
         });
 
       // return transformed image
-      return streamingResizeBuffer(resBuffer, width, height, fit);
+      return streamingResizeBuffer(resBuffer, width, height, fit, headers);
     } catch (error) {
       console.log(error);
       // if the image is not found, or we get any other errors we return different response types
