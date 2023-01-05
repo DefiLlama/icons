@@ -1,10 +1,26 @@
 import type { LoaderArgs } from "@remix-run/node";
-import { extractParams, handleError, readFileAsStream, streamingResize } from "~/modules/image-resize";
-import { Octokit } from "@octokit/core";
+import {
+  extractParams,
+  handleError,
+  readFileAsStream,
+  streamingResize,
+  streamingResizeBuffer,
+} from "~/modules/image-resize";
 
-const octokit = new Octokit({
-  auth: process.env.MINTY_ACCESS_TOKEN,
-});
+// const octokit = new Octokit({
+//   auth: process.env.MINTY_ACCESS_TOKEN,
+// });
+// await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}'", {
+//   owner: "DefiLlama",
+//   repo: "icons",
+//   path: `assets/nfts/${src.toLowerCase()}`,
+//   message: `nfts: add ${src.toLowerCase()}`,
+//   committer: {
+//     name: "mintdart",
+//     email: process.env.MINTY_EMAIL,
+//   },
+//   content: resBuffer,
+// });
 
 export const loader = async ({ params, request }: LoaderArgs) => {
   // extract all the parameters from the url
@@ -18,18 +34,22 @@ export const loader = async ({ params, request }: LoaderArgs) => {
   } catch (error: unknown) {
     try {
       // if the image is not found, fetch collection's image from opensea
-      const res = await fetch(`https://api.opensea.io/api/v1/asset_contract/${src.toLowerCase()}`, {
-        method: "POST",
-        headers: { "X-API-KEY": "" },
-      }).then((res) => res.json());
+      const options = { method: "GET", headers: { accept: "application/json" } };
 
-      // const img = await fetch(res.collection["large_image_url"]);
+      const res = await fetch(
+        `https://eth-mainnet.g.alchemy.com/nft/v2/${
+          process.env.ALCHEMY_NFT_API_KEY
+        }/getContractMetadata?contractAddress=${src.toLowerCase()}`,
+        options,
+      ).then((response) => response.json());
 
-      // const content = Buffer.from(await img.arrayBuffer());
+      const response = await fetch(res.contractMetadata.openSea.imageUrl);
 
-      // console.log({ content });s
+      const resBlob = await response.blob();
+      const resBufferArray = await resBlob.arrayBuffer();
+      const resBuffer = Buffer.from(resBufferArray);
 
-      return res;
+      return streamingResizeBuffer(resBuffer, width, height, fit);
     } catch (error) {
       console.log(error);
       // if the image is not found, or we get any other errors we return different response types
@@ -37,15 +57,3 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     }
   }
 };
-
-// await octokit.request("PUT /repos/{owner}/{repo}/contents/{path}'", {
-//   owner: "DefiLlama",
-//   repo: "icons",
-//   path: "assets/nfts/hello.txt",
-//   message: "nfts: add icons",
-//   committer: {
-//     name: "mintdart",
-//     email: process.env.MINTY_EMAIL,
-//   },
-//   content: Buffer.from("Hello World").toString("base64"),
-// });
