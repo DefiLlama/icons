@@ -21,6 +21,11 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     return getColor(srcPath);
   } catch (error: unknown) {
     // if the image is not found, return default color
-    return defaultColor;
+    return new Response(defaultColor, {
+      headers: {
+        "content-type": "text/plain;charset=UTF-8",
+      },
+      status: 200,
+    });
   }
 };
