@@ -10,7 +10,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@octokit/core": "^4.1.0",
+    "@aws-sdk/client-s3": "^3.245.0",
     "@remix-run/express": "^1.8.2",
     "@remix-run/node": "^1.8.2",
     "@remix-run/react": "^1.8.2",

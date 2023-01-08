@@ -1,20 +1,47 @@
 import type { LoaderArgs } from "@remix-run/node";
-import {
-  extractParams,
-  handleError,
-  readFileAsStream,
-  streamingResize,
-  streamingResizeBuffer,
-} from "~/modules/image-resize";
-import { Octokit } from "@octokit/core";
-
-const octokit = new Octokit({
-  auth: process.env.MINTY_ACCESS_TOKEN,
-});
+import { extractParams, handleError, streamingResize, streamingResizeBuffer } from "~/modules/image-resize";
+import { getFileFromS3, saveFileToS3 } from "~/modules/s3-client";
 
 const headers = {
   "Cache-Control": "public, max-age=31536000, immutable",
   "CDN-Cache-Control": "public, max-age=31536000, immutable",
+};
+
+const getImageFromAlchemy = async (src: string) => {
+  try {
+    // if the image is not found, fetch collection's data from alchemy
+    const options = { method: "GET", headers: { accept: "application/json" } };
+    const res = await fetch(
+      `https://eth-mainnet.g.alchemy.com/nft/v2/${
+        process.env.ALCHEMY_NFT_API_KEY
+      }/getContractMetadata?contractAddress=${src.toLowerCase()}`,
+      options,
+    ).then((response) => response.json());
+
+    const imageUrl = res.contractMetadata?.openSea?.imageUrl;
+
+    if (!imageUrl) {
+      throw new Error(`Couldn't fetch ${src} metadata`);
+    }
+    // fetch collection's image from opensea cdn
+    const response = await fetch(imageUrl);
+
+    const contentType = response.headers.get("content-type");
+
+    const resBuffer = await resToBuffer(response);
+
+    return { resBuffer, contentType };
+  } catch (error) {
+    console.log(`Error: ${src} ${error}`);
+    // if the image is not found, or we get any other errors we return different response types
+    throw error;
+  }
+};
+
+const resToBuffer = async (response: Response) => {
+  const resBlob = await response.blob();
+  const resBufferArray = await resBlob.arrayBuffer();
+  return Buffer.from(resBufferArray);
 };
 
 export const loader = async ({ params, request }: LoaderArgs) => {
@@ -22,52 +49,25 @@ export const loader = async ({ params, request }: LoaderArgs) => {
   const { src, width, height, fit } = extractParams(params, request);
 
   try {
-    // read the image as a stream of bytes
-    const readStream = readFileAsStream(src, "assets/nfts");
-    // read the image from the file system and stream it through the sharp pipeline
-    return streamingResize(readStream, width, height, fit, headers);
-  } catch (error: unknown) {
-    try {
-      // if the image is not found, fetch collection's data from alchemy
-      const options = { method: "GET", headers: { accept: "application/json" } };
+    const fileFromS3 = await getFileFromS3(`collection/${src}`);
 
-      const res = await fetch(
-        `https://eth-mainnet.g.alchemy.com/nft/v2/${
-          process.env.ALCHEMY_NFT_API_KEY
-        }/getContractMetadata?contractAddress=${src.toLowerCase()}`,
-        options,
-      ).then((response) => response.json());
+    if (fileFromS3) {
+      return streamingResize({ imageStream: fileFromS3 as any, width, height, fit, headers });
+    } else {
+      const { resBuffer, contentType } = await getImageFromAlchemy(src);
 
-      // fetch collection's image from opensea cdn
-      const response = await fetch(res.contractMetadata.openSea.imageUrl);
-
-      const resBlob = await response.blob();
-      const resBufferArray = await resBlob.arrayBuffer();
-      const resBuffer = Buffer.from(resBufferArray);
-
-      // commit image to our repo
-      octokit
-        .request("PUT /repos/{owner}/{repo}/contents/{path}", {
-          owner: "DefiLlama",
-          repo: "icons",
-          path: `assets/nfts/${src.toLowerCase()}.png`,
-          message: `nfts: add ${src.toLowerCase()}`,
-          committer: {
-            name: "mintdart",
-            email: process.env.MINTY_EMAIL as string,
-          },
-          content: resBuffer.toString("base64"),
-        })
-        .catch(() => {
-          return streamingResizeBuffer(resBuffer, width, height, fit, headers);
-        });
+      await saveFileToS3({
+        pathname: `collection/${src}`,
+        body: resBuffer,
+        ContentType: contentType || "image/jpeg",
+      });
 
       // return transformed image
       return streamingResizeBuffer(resBuffer, width, height, fit, headers);
-    } catch (error) {
-      console.log(error);
-      // if the image is not found, or we get any other errors we return different response types
-      return handleError(error, width, height, fit);
     }
+  } catch (error: unknown) {
+    console.log(error);
+
+    return handleError({ error, width, height, fit, defaultImage: true });
   }
 };
