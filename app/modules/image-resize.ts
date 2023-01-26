@@ -35,17 +35,24 @@ export function extractParams(params: Params<string>, request: Request): ResizeP
   return { src, width, height, fit };
 }
 
-export function streamingResize(
-  imageStream: ReadStream,
-  width: number | undefined,
-  height: number | undefined,
-  fit: keyof FitEnum,
-  headers: HeadersInit = {
+export function streamingResize({
+  imageStream,
+  width,
+  height,
+  fit,
+  headers = {
     "Cache-Control": "public, max-age=14400",
     "CDN-Cache-Control": "public, max-age=31536000",
   },
-  status: number = 200,
-) {
+  status = 200,
+}: {
+  imageStream: ReadStream;
+  width?: number | undefined;
+  height?: number | undefined;
+  fit?: keyof FitEnum;
+  headers?: HeadersInit;
+  status?: number;
+}) {
   // create the sharp transform pipeline
   // https://sharp.pixelplumbing.com/api-resize
   // you can also add watermarks, sharpen, blur, etc.
@@ -74,9 +81,46 @@ export function streamingResize(
   });
 }
 
-export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
-  // Local filesystem
+export function streamingResizeBuffer(
+  imageBuffer: Buffer,
+  width: number | undefined,
+  height: number | undefined,
+  fit: keyof FitEnum,
+  headers: HeadersInit = {
+    "Cache-Control": "public, max-age=14400",
+    "CDN-Cache-Control": "public, max-age=31536000",
+  },
+  status: number = 200,
+) {
+  // create the sharp transform pipeline
+  // https://sharp.pixelplumbing.com/api-resize
+  // you can also add watermarks, sharpen, blur, etc.
+  const sharpTransforms = sharp(imageBuffer)
+    .resize({
+      width,
+      height,
+      fit,
+      position: sharp.strategy.attention, // will try to crop the image and keep the most interesting parts
+    })
+    .webp({ lossless: true });
 
+  // create a pass through stream that will take the input image
+  // stream it through the sharp pipeline and then output it to the response
+  // without buffering the entire image in memory
+  const passthroughStream = new PassThrough();
+
+  sharpTransforms.pipe(passthroughStream);
+
+  return new Response(passthroughStream as any, {
+    headers: {
+      "Content-Type": "image/webp",
+      ...headers,
+    },
+    status,
+  });
+}
+
+export function getSrcPath(src: string, ASSETS_ROOT: string) {
   let srcPath = null;
 
   readdirSync(ASSETS_ROOT).forEach((file) => {
@@ -93,6 +137,14 @@ export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
     srcPath = path.join(ASSETS_ROOT, src);
   }
 
+  return srcPath;
+}
+
+export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
+  // Local filesystem
+
+  const srcPath = getSrcPath(src, ASSETS_ROOT);
+
   const fileStat = statSync(srcPath);
 
   if (!fileStat.isFile()) {
@@ -103,24 +155,36 @@ export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
   return createReadStream(srcPath);
 }
 
-export function handleError(error: unknown, width?: number, height?: number, fit: keyof sharp.FitEnum = "contain") {
+export function handleError({
+  error,
+  width,
+  height,
+  fit = "contain",
+  defaultImage,
+}: {
+  error?: unknown;
+  width?: number;
+  height?: number;
+  fit?: keyof sharp.FitEnum;
+  defaultImage?: boolean;
+}) {
   // error needs to be typed
   const errorT = error as Error & { code: string };
   // if the read stream fails, it will have the error.code ENOENT
-  if (errorT.code === "ENOENT") {
+  if (errorT?.code === "ENOENT" || defaultImage) {
     const readStream = readFileAsStream("notfound", "assets");
     // read the image from the file system and stream it through the sharp pipeline
-    return streamingResize(
-      readStream,
+    return streamingResize({
+      imageStream: readStream,
       width,
       height,
       fit,
-      {
+      headers: {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "CDN-Cache-Control": "no-cache, no-store, must-revalidate",
       },
-      404,
-    );
+      status: 404,
+    });
   }
 
   // if there is an error processing the image, we return a 500 error
