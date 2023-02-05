@@ -10,9 +10,8 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     const [chainId, ...tokenAddresses] = src.split("/");
     const tokenAddress = tokenAddresses.join("/").toLowerCase();
 
-    const tokenList = await fetch("https://icons.llamao.fi/token-list", {
-      headers: { "User-Agent": "Mozilla/5.0 (platform; rv:geckoversion) Gecko/geckotrail Firefox/firefoxversion" },
-    }).then((res) => res.json());
+    // fetch token list
+    const tokenList = await fetch("https://icons.llamao.fi/token-list").then((res) => res.json());
 
     if (!tokenList.tokens) {
       throw new Error(`${src}: Couldn't fetch tokens list`);
