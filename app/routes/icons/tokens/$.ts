@@ -24,7 +24,9 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     if (!tokenList.tokens[chainId][tokenAddress]) {
       throw new Error(`${src}: Couldn't find token`);
     }
+
     console.log(tokenList.tokens[chainId][tokenAddress]);
+
     // fetch token image
     const tokenImage = await fetch(tokenList.tokens[chainId][tokenAddress]);
 
@@ -32,7 +34,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
 
     const contentType = tokenImage.headers.get("content-type");
 
-    if (!contentType || contentType.startsWith("/image")) {
+    if (!contentType || !contentType.startsWith("image")) {
       throw new Error(`${src}: Failed to fetch token image`);
     }
 
