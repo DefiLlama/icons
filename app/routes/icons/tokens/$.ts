@@ -26,7 +26,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
       throw new Error(`${src}: Couldn't find token`);
     }
 
-    // fetch collection's image from opensea cdn
+    // fetch token image
     const tokenImage = await fetch(tokenList.tokens[chainId][tokenAddress]);
 
     const contentType = tokenImage.headers.get("content-type");
