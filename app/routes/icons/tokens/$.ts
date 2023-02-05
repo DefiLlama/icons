@@ -24,9 +24,11 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     if (!tokenList.tokens[chainId][tokenAddress]) {
       throw new Error(`${src}: Couldn't find token`);
     }
-
+    console.log(tokenList.tokens[chainId][tokenAddress]);
     // fetch token image
     const tokenImage = await fetch(tokenList.tokens[chainId][tokenAddress]);
+
+    console.log(tokenImage);
 
     const contentType = tokenImage.headers.get("content-type");
 
