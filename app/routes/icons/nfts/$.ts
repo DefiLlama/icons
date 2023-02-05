@@ -1,5 +1,6 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { extractParams, handleError, streamingResize, streamingResizeBuffer } from "~/modules/image-resize";
+import { resToBuffer } from "~/modules/response";
 import { getFileFromS3, saveFileToS3 } from "~/modules/s3-client";
 
 const headers = {
@@ -36,12 +37,6 @@ const getImageFromAlchemy = async (src: string) => {
     // if the image is not found, or we get any other errors we return different response types
     throw error;
   }
-};
-
-const resToBuffer = async (response: Response) => {
-  const resBlob = await response.blob();
-  const resBufferArray = await resBlob.arrayBuffer();
-  return Buffer.from(resBufferArray);
 };
 
 export const loader = async ({ params, request }: LoaderArgs) => {
