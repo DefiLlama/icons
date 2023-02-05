@@ -60,7 +60,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     if (!contentType || !contentType.startsWith("image")) {
       if (trustWalletChainsMap[Number(chainId)]) {
         const trustWalletImage = await fetch(
-          `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/${
+          `https://raw.githubusercontent.com/rainbow-me/assets/master/blockchains/${
             trustWalletChainsMap[Number(chainId)]
           }/assets/${getAddress(tokenAddress)}/logo.png`,
         );
