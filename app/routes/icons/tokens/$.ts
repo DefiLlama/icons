@@ -55,9 +55,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     // fetch token image
     let tokenImage = await fetch(tokenList.tokens[chainId][tokenAddress]);
 
-    const contentType = tokenImage.headers.get("content-type");
-
-    if (!contentType || !contentType.startsWith("image")) {
+    if (!isvalidImage(tokenImage)) {
       if (trustWalletChainsMap[Number(chainId)]) {
         const trustWalletImage = await fetch(
           `https://raw.githubusercontent.com/rainbow-me/assets/master/blockchains/${
@@ -65,12 +63,20 @@ export const loader = async ({ params, request }: LoaderArgs) => {
           }/assets/${getAddress(tokenAddress)}/logo.png`,
         );
 
-        const cType = trustWalletImage.headers.get("content-type");
-
-        if (cType && cType.startsWith("image")) {
+        if (isvalidImage(trustWalletImage)) {
           tokenImage = trustWalletImage;
         } else {
-          throw new Error(`${src}: Failed to fetch token image`);
+          const pancakeswapImage = await fetch(
+            `https://tokens.pancakeswap.finance/images/${getAddress(tokenAddress)}.png`,
+          );
+
+          console.log(`pancakeswap cdn response: ${pancakeswapImage}`);
+
+          if (isvalidImage(pancakeswapImage)) {
+            tokenImage = pancakeswapImage;
+          } else {
+            throw new Error(`${src}: Failed to fetch token image`);
+          }
         }
       } else {
         throw new Error(`${src}: Failed to fetch token image`);
@@ -86,4 +92,10 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     // if the image is not found, or we get any other errors we return different response types
     return handleError({ error, width, height, fit, defaultImage: true });
   }
+};
+
+const isvalidImage = (res: Response) => {
+  const imgType = res.headers.get("content-type");
+
+  return imgType && imgType.startsWith("image") ? true : false;
 };
