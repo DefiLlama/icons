@@ -56,30 +56,36 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     let tokenImage = await fetch(tokenList.tokens[chainId][tokenAddress]);
 
     if (!isvalidImage(tokenImage)) {
-      if (trustWalletChainsMap[Number(chainId)]) {
-        const trustWalletImage = await fetch(
-          `https://raw.githubusercontent.com/rainbow-me/assets/master/blockchains/${
-            trustWalletChainsMap[Number(chainId)]
-          }/assets/${getAddress(tokenAddress)}/logo.png`,
-        );
+      const fallbackImage = await fallbacksByChain(Number(chainId), tokenAddress);
 
-        if (isvalidImage(trustWalletImage)) {
-          tokenImage = trustWalletImage;
-        } else {
-          const pancakeswapImage = await fetch(
-            `https://tokens.pancakeswap.finance/images/${getAddress(tokenAddress)}.png`,
+      if (fallbackImage) {
+        tokenImage = fallbackImage;
+      } else {
+        if (trustWalletChainsMap[Number(chainId)]) {
+          const trustWalletImage = await fetch(
+            `https://raw.githubusercontent.com/rainbow-me/assets/master/blockchains/${
+              trustWalletChainsMap[Number(chainId)]
+            }/assets/${getAddress(tokenAddress)}/logo.png`,
           );
 
-          console.log(`pancakeswap cdn response: ${pancakeswapImage}`);
-
-          if (isvalidImage(pancakeswapImage)) {
-            tokenImage = pancakeswapImage;
+          if (isvalidImage(trustWalletImage)) {
+            tokenImage = trustWalletImage;
           } else {
-            throw new Error(`${src}: Failed to fetch token image`);
+            const pancakeswapImage = await fetch(
+              `https://tokens.pancakeswap.finance/images/${getAddress(tokenAddress)}.png`,
+            );
+
+            console.log(`${src}: pancakeswap cdn response: ${pancakeswapImage}`);
+
+            if (isvalidImage(pancakeswapImage)) {
+              tokenImage = pancakeswapImage;
+            } else {
+              throw new Error(`${src}: Failed to fetch token image`);
+            }
           }
+        } else {
+          throw new Error(`${src}: Failed to fetch token image`);
         }
-      } else {
-        throw new Error(`${src}: Failed to fetch token image`);
       }
     }
 
@@ -88,9 +94,27 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     // return transformed image
     return streamingResizeBuffer(resBuffer, width, height, fit);
   } catch (error: unknown) {
-    console.log(error);
+    console.log(`${src}: Error: ${error}`);
     // if the image is not found, or we get any other errors we return different response types
     return handleError({ error, width, height, fit, defaultImage: true });
+  }
+};
+
+const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
+  try {
+    // avax
+    if (chainId === 43114) {
+      const joeImage = await fetch(
+        `https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/${getAddress(
+          tokenAddress,
+        )}/logo.png`,
+      );
+
+      return isvalidImage(joeImage) ? joeImage : null;
+    }
+  } catch (error) {
+    console.log(`Couldn't fetch ${tokenAddress} fallback image on ${chainId} chain`);
+    return null;
   }
 };
 
