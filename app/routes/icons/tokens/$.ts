@@ -1,7 +1,39 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { getAddress } from "ethers";
-import { extractParams, handleError, streamingResizeBuffer } from "~/modules/image-resize";
+import {
+  extractParams,
+  handleError,
+  readFileAsStream,
+  streamingResize,
+  streamingResizeBuffer,
+} from "~/modules/image-resize";
 import { resToBuffer } from "~/modules/response";
+
+const chainIconUrls: { [chainId: number]: string } = {
+  1: "ethereum",
+  56: "binance",
+  42161: "ethereum",
+  10: "ethereum",
+  66: "okexchain",
+  288: "ethereum",
+  1666600000: "harmony",
+  128: "heco",
+  106: "velas",
+  24462: "oasis",
+  199: "bittorrent",
+  1285: "moonriver",
+  1284: "moonbeam",
+  122: "fuse",
+  2000: "dogechain",
+  25: "cronos",
+  42220: "celo",
+  1313161554: "ethereum",
+  43114: "avax",
+  8217: "klaytn",
+  250: "fantom",
+  100: "gnosis",
+  137: "polygon",
+};
 
 export const trustWalletChainsMap: { [chainId: number]: string } = {
   1: "ethereum",
@@ -36,6 +68,13 @@ export const loader = async ({ params, request }: LoaderArgs) => {
   try {
     const [chainId, ...tokenAddresses] = src.split("/");
     const tokenAddress = tokenAddresses.join("/").toLowerCase();
+
+    if (tokenAddress === "0x0000000000000000000000000000000000000000" && chainIconUrls[Number(chainId)]) {
+      // read the image as a stream of bytes
+      const readStream = readFileAsStream(chainIconUrls[Number(chainId)], "assets/agg_icons");
+      // read the image from the file system and stream it through the sharp pipeline
+      return streamingResize({ imageStream: readStream, width, height, fit });
+    }
 
     // fetch token list
     const tokenList = await fetch("https://icons.llamao.fi/token-list").then((res) => res.json());
