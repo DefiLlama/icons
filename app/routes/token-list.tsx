@@ -69,7 +69,7 @@ export const loader = async () => {
           logoDirectory[token.chainId] = {};
         }
 
-        if (!logoDirectory[token.chainId][address] && !token.logoURI.startsWith("ipfs://")) {
+        if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
           logoDirectory[token.chainId][address] = token.logoURI;
         }
       });
@@ -99,7 +99,7 @@ export const loader = async () => {
           logoDirectory[token.chainId] = {};
         }
 
-        if (!logoDirectory[token.chainId][address] && !token.logoURI.startsWith("ipfs://")) {
+        if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
           logoDirectory[token.chainId][address] = token.logoURI;
         }
       });
@@ -117,7 +117,7 @@ export const loader = async () => {
                 logoDirectory[chainId] = {};
               }
 
-              if (!logoDirectory[chainId][address] && !token.logoURI.startsWith("ipfs://")) {
+              if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
                 logoDirectory[chainId][address] = token.logoURI;
               }
             }
@@ -130,7 +130,7 @@ export const loader = async () => {
           logoDirectory[0] = {};
         }
 
-        if (!logoDirectory[0][name] && !token.logoURI.startsWith("ipfs://")) {
+        if (!logoDirectory[0][name] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
           logoDirectory[0][name] = token.logoURI;
         }
       });
