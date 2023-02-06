@@ -69,7 +69,7 @@ export const loader = async () => {
           logoDirectory[token.chainId] = {};
         }
 
-        if (!logoDirectory[token.chainId][address]) {
+        if (!logoDirectory[token.chainId][address] && !token.logoURI.startsWith("ipfs://")) {
           logoDirectory[token.chainId][address] = token.logoURI;
         }
       });
@@ -83,7 +83,7 @@ export const loader = async () => {
           logoDirectory[token.chainId] = {};
         }
 
-        if (token.logoURI && !logoDirectory[token.chainId][address]) {
+        if (token.logoURI && !token.logoURI.startsWith("ipfs://") && !logoDirectory[token.chainId][address]) {
           logoDirectory[token.chainId][address] = token.logoURI.startsWith("https://")
             ? token.logoURI
             : `https://raw.githubusercontent.com/sushiswap/list/master/logos/token-logos/token/${token.logoURI}`;
@@ -99,7 +99,7 @@ export const loader = async () => {
           logoDirectory[token.chainId] = {};
         }
 
-        if (!logoDirectory[token.chainId][address]) {
+        if (!logoDirectory[token.chainId][address] && !token.logoURI.startsWith("ipfs://")) {
           logoDirectory[token.chainId][address] = token.logoURI;
         }
       });
@@ -117,7 +117,7 @@ export const loader = async () => {
                 logoDirectory[chainId] = {};
               }
 
-              if (!logoDirectory[chainId][address]) {
+              if (!logoDirectory[chainId][address] && !token.logoURI.startsWith("ipfs://")) {
                 logoDirectory[chainId][address] = token.logoURI;
               }
             }
@@ -130,7 +130,7 @@ export const loader = async () => {
           logoDirectory[0] = {};
         }
 
-        if (!logoDirectory[0][name]) {
+        if (!logoDirectory[0][name] && !token.logoURI.startsWith("ipfs://")) {
           logoDirectory[0][name] = token.logoURI;
         }
       });
