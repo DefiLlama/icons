@@ -193,7 +193,7 @@ export function handleError({
     statusText: errorT.message,
     headers: {
       "Content-Type": "text/plain",
-      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Cache-Control": "public, max-age=120, must-revalidate",
     },
   });
 }
