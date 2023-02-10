@@ -180,8 +180,8 @@ export function handleError({
       height,
       fit,
       headers: {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "CDN-Cache-Control": "no-cache, no-store, must-revalidate",
+        "Cache-Control": "public, max-age=600, must-revalidate",
+        "CDN-Cache-Control": "public, max-age=600, must-revalidate",
       },
       status: 404,
     });
