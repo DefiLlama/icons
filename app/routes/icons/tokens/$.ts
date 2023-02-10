@@ -8,6 +8,7 @@ import {
   streamingResizeBuffer,
 } from "~/modules/image-resize";
 import { resToBuffer } from "~/modules/response";
+import { getFileFromS3, saveFileToS3 } from "~/modules/s3-client";
 
 const chainIconUrls: { [chainId: number]: string } = {
   1: "ethereum",
@@ -76,6 +77,12 @@ export const loader = async ({ params, request }: LoaderArgs) => {
       return streamingResize({ imageStream: readStream, width, height, fit });
     }
 
+    const fileFromS3 = await getFileFromS3(`token/${chainId}/${tokenAddress}`);
+
+    if (fileFromS3) {
+      return streamingResize({ imageStream: fileFromS3 as any, width, height, fit });
+    }
+
     // fetch token list
     const tokenList = await fetch("https://icons.llamao.fi/token-list").then((res) => res.json());
 
@@ -114,8 +121,6 @@ export const loader = async ({ params, request }: LoaderArgs) => {
               `https://tokens.pancakeswap.finance/images/${getAddress(tokenAddress)}.png`,
             );
 
-            console.log(`${src}: pancakeswap cdn response: ${pancakeswapImage}`);
-
             if (isvalidImage(pancakeswapImage)) {
               tokenImage = pancakeswapImage;
             } else {
@@ -129,6 +134,12 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     }
 
     const resBuffer = await resToBuffer(tokenImage);
+
+    await saveFileToS3({
+      pathname: `token/${chainId}/${tokenAddress}`,
+      body: resBuffer,
+      ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
+    });
 
     // return transformed image
     return streamingResizeBuffer(resBuffer, width, height, fit);
@@ -152,7 +163,6 @@ const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
       return isvalidImage(joeImage) ? joeImage : null;
     }
   } catch (error) {
-    console.log(`Couldn't fetch ${tokenAddress} fallback image on ${chainId} chain`);
     return null;
   }
 };
