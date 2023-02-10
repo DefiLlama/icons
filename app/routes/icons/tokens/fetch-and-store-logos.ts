@@ -1,5 +1,5 @@
 import { resToBuffer } from "~/modules/response";
-import { saveFileToS3 } from "~/modules/s3-client";
+import { saveFileToS3, getFileFromS3 } from "~/modules/s3-client";
 
 export const loader = async () => {
   try {
@@ -10,18 +10,22 @@ export const loader = async () => {
       for (const token in tokenList.tokens[chain]) {
         const imgUrl = tokenList.tokens[chain][token];
         if (imgUrl.startsWith("https://assets.coingecko.com")) {
-          const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
+          const fileFromS3 = await getFileFromS3(`token/${chain}/${token}`);
 
-          if (isvalidImage(tokenImage)) {
-            const resBuffer = await resToBuffer(tokenImage);
+          if (!fileFromS3) {
+            const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
 
-            await saveFileToS3({
-              pathname: `token/${chain}/${token}`,
-              body: resBuffer,
-              ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
-            });
+            if (isvalidImage(tokenImage)) {
+              const resBuffer = await resToBuffer(tokenImage);
 
-            console.log(`saved ${imgUrl}`);
+              await saveFileToS3({
+                pathname: `token/${chain}/${token}`,
+                body: resBuffer,
+                ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
+              });
+
+              console.log(`saved ${imgUrl}`);
+            }
           }
         }
       }
