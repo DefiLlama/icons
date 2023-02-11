@@ -5,12 +5,11 @@ export const loader = async () => {
   try {
     // fetch token list
     const tokenList = await fetch("https://icons.llamao.fi/token-list").then((res) => res.json());
+    let processed = 0;
 
     for (const chain in tokenList.tokens) {
       for (const token in tokenList.tokens[chain]) {
         const imgUrl = tokenList.tokens[chain][token];
-        // log imgUrl but remove the starting part of the url "https://assets.coingecko.com/coins/images/"
-        console.log(chain, token, imgUrl.replace("https://assets.coingecko.com/coins/images/", ""));
         if (imgUrl.startsWith("https://assets.coingecko.com")) {
           const exists = await checkIfFileExists(`token/${chain}/${token}`);
 
@@ -19,7 +18,6 @@ export const loader = async () => {
 
             if (isValidImage(tokenImage)) {
               const resBuffer = await resToBuffer(tokenImage);
-              console.log("valid image");
 
               await saveFileToS3({
                 pathname: `token/${chain}/${token}`,
@@ -30,6 +28,11 @@ export const loader = async () => {
               console.log(`saved ${imgUrl}`);
             }
           }
+        }
+
+        processed++;
+        if (processed % 25 === 0) {
+          console.log(`processed ${processed}`);
         }
       }
     }
