@@ -1,5 +1,5 @@
 import { resToBuffer } from "~/modules/response";
-import { saveFileToS3, getFileFromS3 } from "~/modules/s3-client";
+import { saveFileToS3, checkIfFileExists } from "~/modules/s3-client";
 
 export const loader = async () => {
   try {
@@ -9,14 +9,17 @@ export const loader = async () => {
     for (const chain in tokenList.tokens) {
       for (const token in tokenList.tokens[chain]) {
         const imgUrl = tokenList.tokens[chain][token];
+        // log imgUrl but remove the starting part of the url "https://assets.coingecko.com/coins/images/"
+        console.log(chain, token, imgUrl.replace("https://assets.coingecko.com/coins/images/", ""));
         if (imgUrl.startsWith("https://assets.coingecko.com")) {
-          const fileFromS3 = await getFileFromS3(`token/${chain}/${token}`);
+          const exists = await checkIfFileExists(`token/${chain}/${token}`);
 
-          if (!fileFromS3) {
+          if (!exists) {
             const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
 
-            if (isvalidImage(tokenImage)) {
+            if (isValidImage(tokenImage)) {
               const resBuffer = await resToBuffer(tokenImage);
+              console.log("valid image");
 
               await saveFileToS3({
                 pathname: `token/${chain}/${token}`,
@@ -37,7 +40,7 @@ export const loader = async () => {
   }
 };
 
-const isvalidImage = (res: Response) => {
+const isValidImage = (res: Response) => {
   const imgType = res.headers.get("content-type");
 
   return imgType && imgType.startsWith("image") ? true : false;
