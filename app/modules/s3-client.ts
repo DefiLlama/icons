@@ -79,3 +79,22 @@ export const getFileFromS3 = async (key: string) => {
     throw error;
   }
 };
+
+export const checkIfFileExists = async (key: string) => {
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+    });
+
+    const data = await S3_CLIENT.send(command);
+
+    return data.$metadata.httpStatusCode === 200;
+  } catch (error) {
+    if ((error as any).name === "NotFound") {
+      return false;
+    }
+
+    throw error;
+  }
+};
