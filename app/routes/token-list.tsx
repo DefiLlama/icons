@@ -38,10 +38,11 @@ export const geckoChainsMap: { [chain: string]: number } = {
 
 export const loader = async () => {
   try {
-    const [uniList, sushiList, geckoList] = await Promise.allSettled([
+    const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
       fetch("https://tokens.uniswap.org/").then((r) => r.json()),
       fetch("https://token-list.sushi.com/").then((r) => r.json()),
       fetch("https://defillama-datasets.llama.fi/tokenlist/all.json").then((res) => res.json()),
+      fetch("https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json").then((res) => res.json()),
     ]);
 
     const oneInch = await Promise.all(
@@ -87,6 +88,20 @@ export const loader = async () => {
           logoDirectory[token.chainId][address] = token.logoURI.startsWith("https://")
             ? token.logoURI
             : `https://raw.githubusercontent.com/sushiswap/list/master/logos/token-logos/token/${token.logoURI}`;
+        }
+      });
+    }
+
+    if (ownList.status === "fulfilled" && ownList.value) {
+      ownList.value.forEach((token: { address: string; logoURI: string; chainId: number }) => {
+        const address = token.address.toLowerCase();
+
+        if (!logoDirectory[token.chainId]) {
+          logoDirectory[token.chainId] = {};
+        }
+
+        if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+          logoDirectory[token.chainId][address] = token.logoURI;
         }
       });
     }
