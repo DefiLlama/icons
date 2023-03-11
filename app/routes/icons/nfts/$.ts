@@ -39,6 +39,32 @@ const getImageFromAlchemy = async (src: string) => {
   }
 };
 
+const getImageFromLlamaCollections = async (src: string) => {
+  try {
+    const res = await fetch(`https://ezy8r863f5.execute-api.eu-central-1.amazonaws.com/collections`).then((response) =>
+      response.json(),
+    );
+
+    const collection = res.find((collection: any) => collection.collectionId == src);
+
+    if (!collection) {
+      return null;
+    }
+    // fetch collection's image from opensea cdn
+    const response = await fetch(collection.image);
+
+    const contentType = response.headers.get("content-type");
+
+    const resBuffer = await resToBuffer(response);
+
+    return { resBuffer, contentType };
+  } catch (error) {
+    console.log(`Error: ${src} ${error}`);
+    // if the image is not found, or we get any other errors we return different response types
+    throw error;
+  }
+};
+
 export const loader = async ({ params, request }: LoaderArgs) => {
   // extract all the parameters from the url
   const { src, width, height, fit } = extractParams(params, request);
@@ -49,6 +75,20 @@ export const loader = async ({ params, request }: LoaderArgs) => {
     if (fileFromS3) {
       return streamingResize({ imageStream: fileFromS3 as any, width, height, fit, headers });
     } else {
+      const imageFromLlamaCollection = await getImageFromLlamaCollections(src);
+
+      if (imageFromLlamaCollection) {
+        const { resBuffer, contentType } = imageFromLlamaCollection;
+
+        await saveFileToS3({
+          pathname: `collection/${src}`,
+          body: resBuffer,
+          ContentType: contentType || "image/jpeg",
+        });
+
+        // return transformed image
+        return streamingResizeBuffer(resBuffer, width, height, fit, headers);
+      }
       const { resBuffer, contentType } = await getImageFromAlchemy(src);
 
       await saveFileToS3({
