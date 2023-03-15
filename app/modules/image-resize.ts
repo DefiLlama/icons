@@ -53,17 +53,27 @@ export function streamingResize({
   headers?: HeadersInit;
   status?: number;
 }) {
+  const isGIF = imageStream.path.includes(".gif") ? true : false;
   // create the sharp transform pipeline
   // https://sharp.pixelplumbing.com/api-resize
   // you can also add watermarks, sharpen, blur, etc.
-  const sharpTransforms = sharp()
-    .resize({
-      width,
-      height,
-      fit,
-      position: sharp.strategy.attention, // will try to crop the image and keep the most interesting parts
-    })
-    .webp({ lossless: true });
+  const sharpTransforms = isGIF
+    ? sharp({ animated: true })
+        .resize({
+          width,
+          height,
+          fit,
+          position: sharp.strategy.attention, // will try to crop the image and keep the most interesting parts
+        })
+        .gif({ dither: 0 })
+    : sharp()
+        .resize({
+          width,
+          height,
+          fit,
+          position: sharp.strategy.attention, // will try to crop the image and keep the most interesting parts
+        })
+        .webp({ lossless: true });
 
   // create a pass through stream that will take the input image
   // stream it through the sharp pipeline and then output it to the response
@@ -74,7 +84,7 @@ export function streamingResize({
 
   return new Response(passthroughStream as any, {
     headers: {
-      "Content-Type": "image/webp",
+      "Content-Type": isGIF ? "image/gif" : "image/webp",
       ...headers,
     },
     status,
