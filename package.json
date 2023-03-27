@@ -24,7 +24,7 @@
     "polished": "^4.2.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "sharp": "^0.31.2",
+    "sharp": "^0.32.0",
     "wcag-contrast": "^3.0.0"
   },
   "devDependencies": {
@@ -32,7 +32,7 @@
     "@remix-run/eslint-config": "^1.8.2",
     "@types/react": "^18.0.25",
     "@types/react-dom": "^18.0.8",
-    "@types/sharp": "^0.31.0",
+    "@types/sharp": "^0.31.1",
     "@types/wcag-contrast": "^3.0.0",
     "dotenv": "^16.0.3",
     "eslint": "^8.27.0",
