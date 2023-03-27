@@ -53,7 +53,7 @@ export function streamingResize({
   headers?: HeadersInit;
   status?: number;
 }) {
-  const isGIF = imageStream.path.includes(".gif") ? true : false;
+  const isGIF = imageStream?.path?.includes(".gif") ? true : false;
   // create the sharp transform pipeline
   // https://sharp.pixelplumbing.com/api-resize
   // you can also add watermarks, sharpen, blur, etc.
