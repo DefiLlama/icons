@@ -29,7 +29,24 @@ router.get("/token-list", async (ctx) => {
   ctx.body = body;
 });
 
+const paletteRouter = new Router({ prefix: "/palette" });
+paletteRouter.get("/directory/:src", async (ctx) => {
+  const cached = await redis.get(ctx.path);
+  ctx.headers["content-type"] = "text/plain;charset=UTF-8";
+  ctx.headers["cache-control"] = "public, max-age=31536000";
+  if (cached) {
+    ctx.body = cached;
+    return;
+  }
+  const _tokenList = await tokenList();
+  const body = JSON.stringify(_tokenList);
+  await redis.set(ctx.path, body);
+  await redis.expire(ctx.path, 31536000);
+  ctx.body = body;
+});
+
 app.use(router.routes());
+app.use(paletteRouter.routes());
 
 app.listen(process.env.PORT || 3000, async () => {
   console.log("server started");
