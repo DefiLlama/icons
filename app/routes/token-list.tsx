@@ -151,24 +151,17 @@ export const loader = async () => {
       });
     }
 
-    return new Response(JSON.stringify({ tokens: logoDirectory }), {
-      headers: {
-        "content-type": "application/json",
-        "Cache-Control": "max-age=600, must-revalidate",
-        "CDN-Cache-Control": "max-age=600, must-revalidate",
-      },
-      status: 200,
-    });
+    // return new Response(JSON.stringify({ tokens: logoDirectory }), {
+    //   headers: {
+    //     "content-type": "application/json",
+    //     "Cache-Control": "max-age=600, must-revalidate",
+    //     "CDN-Cache-Control": "max-age=600, must-revalidate",
+    //   },
+    //   status: 200,
+    // });
+    return { tokens: logoDirectory };
   } catch (error: unknown) {
     console.log(error);
-    // if the image is not found, return default color
-    return new Response(JSON.stringify({ tokens: {} }), {
-      headers: {
-        "content-type": "application/json",
-        "Cache-Control": "max-age=0, must-revalidate",
-        "CDN-Cache-Control": "max-age=0, must-revalidate",
-      },
-      status: 200,
-    });
+    return { tokens: {} };
   }
 };
