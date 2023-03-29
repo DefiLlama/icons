@@ -1,12 +1,13 @@
 // import type { Request, Response, NextFunction } from "express";
-import { config } from "dotenv";
-import { createClient } from "redis";
+const { config } = require("dotenv");
+// import { createClient } from "redis";
+const { createClient } = require("redis");
 config();
 
-export const redis = createClient({ url: process.env.REDIS_URL });
+const redis = createClient({ url: process.env.REDIS_URL });
 
 // export const setCache = async (key: string, value: string | number | Buffer) => {
-export const setCache = async (key, value) => {
+const setCache = async (key, value) => {
   try {
     const normalized =
       typeof value === "string"
@@ -24,7 +25,7 @@ export const setCache = async (key, value) => {
 };
 
 // export const getCache = async (key: string) => {
-export const getCache = async (key) => {
+const getCache = async (key) => {
   try {
     const data = await redis.get(key);
     if (!data) return null;
@@ -45,7 +46,7 @@ export const getCache = async (key) => {
 //   key: string,
 //   func: () => Promise<string | number | Buffer> | string | number | Buffer,
 // ) => {
-export const withCache = async (key, func) => {
+const withCache = async (key, func) => {
   const value = await getCache(key);
   if (value) return value;
 
@@ -56,7 +57,7 @@ export const withCache = async (key, func) => {
 
 // express middleware to cache the response and return it if it exists
 // export const cacheMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-export const cacheMiddleware = async (req, res, next) => {
+const cacheMiddleware = async (req, res, next) => {
   const key = req.originalUrl || req.url;
   const cachedResponse = await getCache(key);
   if (cachedResponse) {
@@ -76,3 +77,5 @@ export const cacheMiddleware = async (req, res, next) => {
 
   next();
 };
+
+module.exports = { redis, setCache, getCache, withCache, cacheMiddleware };
