@@ -5,9 +5,15 @@ config();
 
 export const redis = createClient({ url: process.env.REDIS_URL });
 
-export const setCache = async (key: string, value: string | Buffer) => {
+export const setCache = async (key: string, value: string | number | Buffer) => {
   try {
-    await redis.set(key, value);
+    const normalized =
+      typeof value === "string"
+        ? "STR::" + value
+        : typeof value === "number"
+        ? "NUM::" + value
+        : "BIN::" + value.toString("binary");
+    await redis.set(key, normalized);
     return true;
   } catch (err) {
     console.log("error in setCache: " + key);
@@ -16,33 +22,31 @@ export const setCache = async (key: string, value: string | Buffer) => {
   }
 };
 
-export const getCacheBin = async (key: string) => {
+export const getCache = async (key: string) => {
   try {
     const data = await redis.get(key);
     if (!data) return null;
-    return Buffer.from(data);
+    const type = data.slice(0, 3);
+    const value = data.slice(4);
+    if (type === "STR") return value;
+    if (type === "NUM") return Number(value);
+    if (type === "BIN") return Buffer.from(value, "binary");
+    return null;
   } catch (err) {
-    console.log("error in getCacheBin: " + key);
+    console.log("error in getCache: " + key);
     console.log(err);
     return null;
   }
 };
 
-export const getCacheString = async (key: string) => {
-  try {
-    const data = await redis.get(key);
-    return data;
-  } catch (err) {
-    console.log("error in getCacheString: " + key);
-    console.log(err);
-    return null;
-  }
-};
+export const withCache = async (
+  key: string,
+  func: () => Promise<string | number | Buffer> | string | number | Buffer,
+) => {
+  const value = await getCache(key);
+  if (value) return value;
 
-export const withCache = async (key: string, func: Function) => {
-  const data = await getCacheBin(key);
-  if (data) return data;
-  const newData = await func();
-  await setCache(key, newData);
-  return newData;
+  const newValue = await func();
+  await setCache(key, newValue);
+  return newValue;
 };
