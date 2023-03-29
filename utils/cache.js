@@ -1,11 +1,12 @@
-import type { Request, Response, NextFunction } from "express";
+// import type { Request, Response, NextFunction } from "express";
 import { config } from "dotenv";
 import { createClient } from "redis";
 config();
 
 export const redis = createClient({ url: process.env.REDIS_URL });
 
-export const setCache = async (key: string, value: string | number | Buffer) => {
+// export const setCache = async (key: string, value: string | number | Buffer) => {
+export const setCache = async (key, value) => {
   try {
     const normalized =
       typeof value === "string"
@@ -22,7 +23,8 @@ export const setCache = async (key: string, value: string | number | Buffer) => 
   }
 };
 
-export const getCache = async (key: string) => {
+// export const getCache = async (key: string) => {
+export const getCache = async (key) => {
   try {
     const data = await redis.get(key);
     if (!data) return null;
@@ -39,10 +41,11 @@ export const getCache = async (key: string) => {
   }
 };
 
-export const withCache = async (
-  key: string,
-  func: () => Promise<string | number | Buffer> | string | number | Buffer,
-) => {
+// export const withCache = async (
+//   key: string,
+//   func: () => Promise<string | number | Buffer> | string | number | Buffer,
+// ) => {
+export const withCache = async (key, func) => {
   const value = await getCache(key);
   if (value) return value;
 
@@ -52,15 +55,18 @@ export const withCache = async (
 };
 
 // express middleware to cache the response and return it if it exists
-export const cacheMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+// export const cacheMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+export const cacheMiddleware = async (req, res, next) => {
   const key = req.originalUrl || req.url;
   const cachedResponse = await getCache(key);
   if (cachedResponse) {
+    console.log("cache hit: " + key);
     res.send(cachedResponse);
     return;
   }
 
-  const sendResponse = async (body: any) => {
+  const sendResponse = async (body) => {
+    console.log("cache miss: " + key);
     await setCache(key, body);
     res.send(body);
   };

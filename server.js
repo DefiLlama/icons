@@ -3,6 +3,7 @@ const express = require("express");
 const compression = require("compression");
 const morgan = require("morgan");
 const { createRequestHandler } = require("@remix-run/express");
+const { redis, cacheMiddleware } = require("./utils/cache");
 
 const BUILD_DIR = path.join(process.cwd(), "build");
 
@@ -22,6 +23,8 @@ app.use(express.static("public", { maxAge: "1h" }));
 
 app.use(morgan("tiny"));
 
+app.use(cacheMiddleware);
+
 app.all(
   "*",
   process.env.NODE_ENV === "development"
@@ -40,8 +43,10 @@ app.all(
 );
 const port = process.env.PORT || 3000;
 
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`Express server listening on port ${port}`);
+  await redis.connect();
+  console.log("Redis connected");
 });
 
 function purgeRequireCache() {
