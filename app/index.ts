@@ -3,6 +3,7 @@ import path from "path";
 import Koa from "koa";
 import Router from "koa-router";
 import Redis from "ioredis";
+import { loader as tokenList } from "./routes/token-list";
 config();
 const redis = new Redis(process.env.REDIS_URL!);
 
@@ -13,9 +14,19 @@ router.get("/", async (ctx) => {
   ctx.body = "issa llama whirl!";
 });
 
-router.get("/test", async (ctx) => {
-  console.log(ctx.query);
-  ctx.body = "test";
+router.get("/token-list", async (ctx) => {
+  const cached = await redis.get("/token-list");
+  ctx.headers["content-type"] = "application/json";
+  ctx.headers["cache-control"] = "public, max-age=600";
+  if (cached) {
+    ctx.body = cached;
+    return;
+  }
+  const _tokenList = await tokenList();
+  const body = JSON.stringify(_tokenList);
+  await redis.set("/token-list", body);
+  await redis.expire("/token-list", 600);
+  ctx.body = body;
 });
 
 app.use(router.routes());
