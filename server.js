@@ -3,7 +3,7 @@ const express = require("express");
 const compression = require("compression");
 const morgan = require("morgan");
 const { createRequestHandler } = require("@remix-run/express");
-const { redis, cacheMiddleware } = require("./utils/cache");
+const { redis, cacheReq } = require("./utils/cache");
 
 const BUILD_DIR = path.join(process.cwd(), "build");
 
@@ -23,7 +23,7 @@ app.use(express.static("public", { maxAge: "1h" }));
 
 app.use(morgan("tiny"));
 
-app.use(cacheMiddleware);
+app.use(cacheReq);
 
 app.all(
   "*",
@@ -41,8 +41,14 @@ app.all(
         mode: process.env.NODE_ENV,
       }),
 );
-const port = process.env.PORT || 3000;
 
+app.use((req, res, next) => {
+  console.log(res);
+  // send a 404 no matter what
+  res.status(404).send("Not Found");
+});
+
+const port = process.env.PORT || 3000;
 app.listen(port, async () => {
   console.log(`Express server listening on port ${port}`);
   await redis.connect();
