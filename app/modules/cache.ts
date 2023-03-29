@@ -1,3 +1,4 @@
+import type { Request, Response, NextFunction } from "express";
 import { config } from "dotenv";
 import { createClient } from "redis";
 config();
@@ -48,4 +49,24 @@ export const withCache = async (
   const newValue = await func();
   await setCache(key, newValue);
   return newValue;
+};
+
+// express middleware to cache the response and return it if it exists
+export const cacheMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  const key = req.originalUrl || req.url;
+  const cachedResponse = await getCache(key);
+  if (cachedResponse) {
+    res.send(cachedResponse);
+    return;
+  }
+
+  const sendResponse = async (body: any) => {
+    await setCache(key, body);
+    res.send(body);
+  };
+
+  // @ts-ignore
+  res.send = sendResponse.bind(res);
+
+  next();
 };
