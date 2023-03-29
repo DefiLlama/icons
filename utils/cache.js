@@ -56,26 +56,28 @@ const withCache = async (key, func) => {
 };
 
 // express middleware to cache the response and return it if it exists
-// export const cacheMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-const cacheMiddleware = async (req, res, next) => {
+// export const cacheReq = async (req: Request, res: Response, next: NextFunction) => {
+const cacheReq = async (req, res, next) => {
   const key = req.originalUrl || req.url;
+  console.log("cache key: " + key);
   const cachedResponse = await getCache(key);
+  console.log("cachedResponse: " + cachedResponse);
   if (cachedResponse) {
     console.log("cache hit: " + key);
     res.send(cachedResponse);
     return;
   }
 
-  const sendResponse = async (body) => {
-    console.log("cache miss: " + key);
-    await setCache(key, body);
-    res.send(body);
-  };
+  // const sendResponse = async (body) => {
+  //   console.log("cache miss: " + key);
+  //   await setCache(key, body);
+  //   res.send(body);
+  // };
 
-  // @ts-ignore
-  res.send = sendResponse.bind(res);
+  // // @ts-ignore
+  // res.send = sendResponse.bind(res);
 
   next();
 };
 
-module.exports = { redis, setCache, getCache, withCache, cacheMiddleware };
+module.exports = { redis, setCache, getCache, withCache, cacheReq };
