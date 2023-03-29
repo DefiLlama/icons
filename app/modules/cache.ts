@@ -1,4 +1,3 @@
-// import redis and create an api to set and get binary from it
 import { config } from "dotenv";
 import { createClient } from "redis";
 config();
@@ -26,11 +25,11 @@ export const getCache = async (key: string) => {
   try {
     const data = await redis.get(key);
     if (!data) return null;
-    const type = data.slice(0, 3);
-    const value = data.slice(4);
-    if (type === "STR") return value;
-    if (type === "NUM") return Number(value);
-    if (type === "BIN") return Buffer.from(value, "binary");
+    const type = data.slice(0, 5);
+    const value = data.slice(5);
+    if (type === "STR::") return value;
+    if (type === "NUM::") return Number(value);
+    if (type === "BIN::") return Buffer.from(value, "binary");
     return null;
   } catch (err) {
     console.log("error in getCache: " + key);
