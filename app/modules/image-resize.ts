@@ -41,7 +41,7 @@ export function streamingResize({
   height,
   fit,
   headers = {
-    "Cache-Control": "public, max-age=14400",
+    "Cache-Control": "public, max-age=86400",
     "CDN-Cache-Control": "public, max-age=31536000",
   },
   status = 200,
@@ -97,7 +97,7 @@ export function streamingResizeBuffer(
   height: number | undefined,
   fit: keyof FitEnum,
   headers: HeadersInit = {
-    "Cache-Control": "public, max-age=14400",
+    "Cache-Control": "public, max-age=86400",
     "CDN-Cache-Control": "public, max-age=31536000",
   },
   status: number = 200,

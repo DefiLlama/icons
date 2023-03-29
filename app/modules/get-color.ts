@@ -30,7 +30,7 @@ export const getColor = async (path?: string) => {
       headers: {
         "content-type": "text/plain;charset=UTF-8",
         ...(color !== defaultColor && {
-          "Cache-Control": "public, max-age=14400",
+          "Cache-Control": "public, max-age=2592000",
           "CDN-Cache-Control": "public, max-age=31536000",
         }),
       },
