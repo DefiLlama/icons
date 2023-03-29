@@ -15,8 +15,8 @@ export const setCache = async (key: string, value: string | number | Buffer) => 
     await redis.set(key, normalized);
     return true;
   } catch (err) {
-    console.log("error in setCache: " + key);
-    console.log(err);
+    console.error("error in setCache: " + key);
+    console.error(err);
     return false;
   }
 };
@@ -32,8 +32,8 @@ export const getCache = async (key: string) => {
     if (type === "BIN::") return Buffer.from(value, "binary");
     return null;
   } catch (err) {
-    console.log("error in getCache: " + key);
-    console.log(err);
+    console.error("error in getCache: " + key);
+    console.error(err);
     return null;
   }
 };
