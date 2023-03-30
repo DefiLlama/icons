@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { Readable } from "stream";
 import { saveFileToS3, getFileFromS3 } from "./s3-client";
 
 const REDIS_URL = process.env.REDIS_URL as string;
@@ -48,18 +49,20 @@ export const saveFileToS3AndCache = async ({
   }
 };
 
-export const getFileFromS3OrCache = async (key: string) => {
+export const getFileFromS3OrCacheStream = async (key: string) => {
   try {
     const cache = await getCache(key);
     if (cache !== null) {
-      return cache;
+      return Readable.from(cache);
     }
     const data = await getFileFromS3(key);
-    if (data) {
-      const _data = await data.transformToByteArray();
+    const _data = await data?.transformToByteArray();
+    if (_data) {
       await setCache(key, Buffer.from(_data));
+      return Readable.from(_data);
+    } else {
+      return null;
     }
-    return data;
   } catch (error) {
     console.error("Error getting file from S3 or cache: ", key);
     console.error(error);
