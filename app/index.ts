@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 import path from "path";
+import koaCash from "koa-cash";
 import Koa from "koa";
 import Router from "koa-router";
 import Redis from "ioredis";
@@ -10,43 +11,44 @@ const redis = new Redis(process.env.REDIS_URL!);
 const app = new Koa();
 const router = new Router();
 
+app.use(
+  koaCash({
+    get: async (key) => {
+      console.log("get", key);
+      const data = await redis.get(key);
+      if (!data) {
+        console.log("no data");
+      } else {
+        console.log("yes data");
+      }
+      return data;
+    },
+    // @ts-ignore
+    set: async (key, value: { body: string | number | Buffer }, maxAge) => {
+      console.log("set", key, maxAge);
+      // console.log(value.body);
+      return await redis.set(key, JSON.stringify(value), "EX", maxAge / 1000);
+    },
+    setCachedHeader: true,
+  }),
+);
+
 router.get("/", async (ctx) => {
   ctx.body = "issa llama whirl!";
 });
 
-router.get("/token-list", async (ctx) => {
-  const cached = await redis.get("/token-list");
-  ctx.headers["content-type"] = "application/json";
-  ctx.headers["cache-control"] = "public, max-age=600";
-  if (cached) {
-    ctx.body = cached;
+router.get("/token-list2", async (ctx) => {
+  if (await ctx.cashed(600_000)) {
+    console.log("cached");
     return;
   }
-  const _tokenList = await tokenList();
-  const body = JSON.stringify(_tokenList);
-  await redis.set("/token-list", body);
-  await redis.expire("/token-list", 600);
-  ctx.body = body;
-});
 
-const paletteRouter = new Router({ prefix: "/palette" });
-paletteRouter.get("/directory/:src", async (ctx) => {
-  const cached = await redis.get(ctx.path);
-  ctx.headers["content-type"] = "text/plain;charset=UTF-8";
-  ctx.headers["cache-control"] = "public, max-age=31536000";
-  if (cached) {
-    ctx.body = cached;
-    return;
-  }
   const _tokenList = await tokenList();
-  const body = JSON.stringify(_tokenList);
-  await redis.set(ctx.path, body);
-  await redis.expire(ctx.path, 31536000);
-  ctx.body = body;
+  ctx.type = "application/json";
+  ctx.body = _tokenList;
 });
 
 app.use(router.routes());
-app.use(paletteRouter.routes());
 
 app.listen(process.env.PORT || 3000, async () => {
   console.log("server started");

@@ -34,6 +34,9 @@ dependencies:
   koa:
     specifier: ^2.14.1
     version: 2.14.1
+  koa-cash:
+    specifier: ^4.1.1
+    version: 4.1.1
   koa-router:
     specifier: ^12.0.0
     version: 12.0.0
@@ -81,6 +84,9 @@ devDependencies:
   '@types/koa':
     specifier: ^2.13.6
     version: 2.13.6
+  '@types/koa-cash':
+    specifier: ^4.1.0
+    version: 4.1.0
   '@types/koa-router':
     specifier: ^7.4.4
     version: 7.4.4
@@ -3373,6 +3379,12 @@ packages:
       '@types/node': 18.15.11
     dev: true
 
+  /@types/koa-cash@4.1.0:
+    resolution: {integrity: sha512-zYUrlGg27rxvBIgKAIkfgxFBWMDvjx4HRZu53Hb5qNWlDrzZvmQwMEvLRlKdSwgIqcR7yjrUCCSsBoKWkXprvQ==}
+    dependencies:
+      '@types/koa': 2.13.6
+    dev: true
+
   /@types/koa-compose@3.2.5:
     resolution: {integrity: sha512-B8nG/OoE1ORZqCkBVsup/AKcvjdgoHnfi4pZMn5UwAPCbhk/96xyv284eBYW8JlQbQ7zDmnpFr68I/40mFoIBQ==}
     dependencies:
@@ -5788,6 +5800,10 @@ packages:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
     dev: true
 
+  /fast-safe-stringify@2.1.1:
+    resolution: {integrity: sha512-W+KJc2dmILlPplD/H4K9l9LcAHAfPtP6BY84uVLXQ6Evcz9Lcg33Y2z1IVblT6xdY54PXYVHEv+0Wpq8Io6zkA==}
+    dev: false
+
   /fast-xml-parser@4.0.11:
     resolution: {integrity: sha512-4aUg3aNRR/WjQAcpceODG1C3x3lFANXRo8+1biqfieHmg9pyMt7qB4lQV/Ta6sJCTbA5vfD8fnA8S54JATiFUA==}
     hasBin: true
@@ -6033,7 +6049,6 @@ packages:
     engines: {node: '>=8'}
     dependencies:
       pump: 3.0.0
-    dev: true
 
   /get-stream@6.0.1:
     resolution: {integrity: sha512-ts6Wi+2j3jQjqi70w5AlN8DFnkSwC+MqmxEzdEALB2qXZYV3X/b1CTfgPLGJNMeAWxdPfU8FO1ms3NUfaHCPYg==}
@@ -6797,7 +6812,6 @@ packages:
   /is-stream@2.0.1:
     resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}
     engines: {node: '>=8'}
-    dev: true
 
   /is-string@1.0.7:
     resolution: {integrity: sha512-tE2UXzivje6ofPW7l23cjDOMa09gb7xlAqG6jG5ej6uPV32TlWP3NKPigtaGeHNu9fohccRYvIiZMfOOnOYUtg==}
@@ -7051,6 +7065,18 @@ packages:
     engines: {node: '>=6'}
     dev: true
 
+  /koa-cash@4.1.1:
+    resolution: {integrity: sha512-tGvQQDkfy6HIERe2PkqLtHvTnpYzFlZy0rKihum18wVP17w9lcxqvYihuRn117ugwHDmOg16T6obtwcq7iiVLg==}
+    engines: {node: '>=8.3'}
+    dependencies:
+      bytes: 3.1.2
+      compressible: 2.0.18
+      fast-safe-stringify: 2.1.1
+      get-stream: 5.2.0
+      is-stream: 2.0.1
+      koa-is-json: 1.0.0
+    dev: false
+
   /koa-compose@4.1.0:
     resolution: {integrity: sha512-8ODW8TrDuMYvXRwra/Kh7/rJo9BtOfPc6qO8eAfC80CnCvSjSl0bkRM24X6/XBBEyj0v1nRUQ1LyOy3dbqOWXw==}
     dev: false
@@ -7061,6 +7087,10 @@ packages:
     dependencies:
       co: 4.6.0
       koa-compose: 4.1.0
+    dev: false
+
+  /koa-is-json@1.0.0:
+    resolution: {integrity: sha512-+97CtHAlWDx0ndt0J8y3P12EWLwTLMXIfMnYDev3wOTwH/RpBGMlfn4bDXlMEg1u73K6XRE9BbUp+5ZAYoRYWw==}
     dev: false
 
   /koa-router@12.0.0:
