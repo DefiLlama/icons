@@ -4,6 +4,7 @@
 
 import type { ReadStream } from "fs";
 import { createReadStream, statSync, readdirSync } from "fs";
+import type { Readable } from "stream";
 import path from "path";
 import { PassThrough } from "stream";
 import type { FitEnum } from "sharp";
@@ -46,14 +47,14 @@ export function streamingResize({
   },
   status = 200,
 }: {
-  imageStream: ReadStream;
+  imageStream: ReadStream | Readable;
   width?: number | undefined;
   height?: number | undefined;
   fit?: keyof FitEnum;
   headers?: HeadersInit;
   status?: number;
 }) {
-  const isGIF = imageStream?.path?.includes(".gif") ? true : false;
+  const isGIF = (imageStream as ReadStream)?.path?.includes(".gif") ? true : false;
   // create the sharp transform pipeline
   // https://sharp.pixelplumbing.com/api-resize
   // you can also add watermarks, sharpen, blur, etc.

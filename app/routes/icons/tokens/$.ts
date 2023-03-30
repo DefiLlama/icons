@@ -8,7 +8,7 @@ import {
   streamingResizeBuffer,
 } from "~/modules/image-resize";
 import { resToBuffer } from "~/modules/response";
-import { getFileFromS3, saveFileToS3 } from "~/modules/s3-client";
+import { getFileFromS3OrCacheBuffer, saveFileToS3AndCache } from "~/modules/cache-client";
 
 const chainIconUrls: { [chainId: number]: string } = {
   1: "ethereum",
@@ -77,10 +77,10 @@ export const loader = async ({ params, request }: LoaderArgs) => {
       return streamingResize({ imageStream: readStream, width, height, fit });
     }
 
-    const fileFromS3 = await getFileFromS3(`token/${chainId}/${tokenAddress}`);
+    const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${tokenAddress}`);
 
-    if (fileFromS3) {
-      return streamingResize({ imageStream: fileFromS3 as any, width, height, fit });
+    if (buffer) {
+      return streamingResizeBuffer(buffer, width, height, fit);
     }
 
     // fetch token list
@@ -135,7 +135,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
 
     const resBuffer = await resToBuffer(tokenImage);
 
-    await saveFileToS3({
+    await saveFileToS3AndCache({
       pathname: `token/${chainId}/${tokenAddress}`,
       body: resBuffer,
       ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
