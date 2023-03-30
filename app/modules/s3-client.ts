@@ -70,12 +70,12 @@ export const getFileFromS3 = async (key: string) => {
 
     return data;
   } catch (error) {
-    console.log("key attempted: " + key);
-    console.log(error);
-
     if ((error as any).Code === "NoSuchKey") {
+      console.log("no such key: ", key);
       return null;
     }
+    console.log("key attempted: " + key);
+    console.log(error);
 
     // throw error;
     return null;
