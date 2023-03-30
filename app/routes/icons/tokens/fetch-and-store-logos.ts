@@ -1,5 +1,6 @@
+import { saveFileToS3AndCache } from "~/modules/cache-client";
 import { resToBuffer } from "~/modules/response";
-import { checkIfFileExists, saveFileToS3 } from "~/modules/s3-client";
+import { checkIfFileExists } from "~/modules/s3-client";
 
 export const loader = async () => {
   try {
@@ -19,7 +20,7 @@ export const loader = async () => {
             if (isValidImage(tokenImage)) {
               const resBuffer = await resToBuffer(tokenImage);
 
-              await saveFileToS3({
+              await saveFileToS3AndCache({
                 pathname: `token/${chain}/${token}`,
                 body: resBuffer,
                 ContentType: tokenImage.headers.get("content-type") || "image/jpeg",

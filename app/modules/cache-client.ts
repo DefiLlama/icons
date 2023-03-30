@@ -1,14 +1,23 @@
 import Redis from "ioredis";
-import { Readable } from "stream";
 import { saveFileToS3, getFileFromS3 } from "./s3-client";
 
 const REDIS_URL = process.env.REDIS_URL as string;
 
 const redis = new Redis(REDIS_URL);
 
-export const setCache = async (key: string, value: Buffer) => {
+export type CacheObject = {
+  body: string;
+  ContentType: string;
+};
+
+export const setCache = async (key: string, value: Buffer, ContentType: string = "image/jpeg") => {
   try {
-    return await redis.set(key, value);
+    const cacheObject: CacheObject = {
+      body: value.toString("base64"),
+      ContentType,
+    };
+
+    return await redis.set(key, JSON.stringify(cacheObject));
   } catch (error) {
     console.error("Error setting cache: ", key);
     console.error(error);
@@ -18,7 +27,12 @@ export const setCache = async (key: string, value: Buffer) => {
 
 export const getCache = async (key: string) => {
   try {
-    return await redis.getBuffer(key);
+    const value = await redis.getBuffer(key);
+    if (value === null) {
+      return null;
+    }
+    const cacheObject: CacheObject = JSON.parse(value.toString());
+    return cacheObject;
   } catch (error) {
     console.error("Error getting cache: ", key);
     console.error(error);
@@ -40,7 +54,7 @@ export const saveFileToS3AndCache = async ({
   }
   try {
     await saveFileToS3({ pathname, body, ContentType });
-    await setCache(pathname, body);
+    await setCache(pathname, body, ContentType);
     return true;
   } catch (error) {
     console.error("Error saving file to S3 and cache: ", pathname);
@@ -49,17 +63,24 @@ export const saveFileToS3AndCache = async ({
   }
 };
 
-export const getFileFromS3OrCacheStream = async (key: string) => {
+export const getFileFromS3OrCacheBuffer = async (key: string) => {
   try {
     const cache = await getCache(key);
-    if (cache !== null) {
-      return Readable.from(cache);
+    const cachedBuffer = cache?.body ? Buffer.from(cache.body, "base64") : null;
+    if (cachedBuffer !== null) {
+      return cachedBuffer;
     }
-    const data = await getFileFromS3(key);
-    const _data = await data?.transformToByteArray();
+
+    const file = await getFileFromS3(key);
+    if (file === null) {
+      return null;
+    }
+    const { Body, ContentType } = file;
+
+    const _data = await Body?.transformToByteArray();
     if (_data) {
-      await setCache(key, Buffer.from(_data));
-      return Readable.from(_data);
+      await setCache(key, Buffer.from(_data), ContentType);
+      return Buffer.from(_data);
     } else {
       return null;
     }

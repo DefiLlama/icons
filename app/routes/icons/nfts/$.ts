@@ -1,7 +1,7 @@
 import type { LoaderArgs } from "@remix-run/node";
-import { extractParams, handleError, streamingResize, streamingResizeBuffer } from "~/modules/image-resize";
+import { extractParams, handleError, streamingResizeBuffer } from "~/modules/image-resize";
 import { resToBuffer } from "~/modules/response";
-import { getFileFromS3, saveFileToS3 } from "~/modules/s3-client";
+import { getFileFromS3OrCacheBuffer, saveFileToS3AndCache } from "~/modules/cache-client";
 
 const headers = {
   "Cache-Control": "public, max-age=31536000, immutable",
@@ -70,17 +70,17 @@ export const loader = async ({ params, request }: LoaderArgs) => {
   const { src, width, height, fit } = extractParams(params, request);
 
   try {
-    const fileFromS3 = await getFileFromS3(`collection/${src}`);
+    const buffer = await getFileFromS3OrCacheBuffer(`collection/${src}`);
 
-    if (fileFromS3) {
-      return streamingResize({ imageStream: fileFromS3 as any, width, height, fit, headers });
+    if (buffer) {
+      return streamingResizeBuffer(buffer, width, height, fit, headers);
     } else {
       const imageFromLlamaCollection = await getImageFromLlamaCollections(src);
 
       if (imageFromLlamaCollection) {
         const { resBuffer, contentType } = imageFromLlamaCollection;
 
-        await saveFileToS3({
+        await saveFileToS3AndCache({
           pathname: `collection/${src}`,
           body: resBuffer,
           ContentType: contentType || "image/jpeg",
@@ -91,7 +91,7 @@ export const loader = async ({ params, request }: LoaderArgs) => {
       }
       const { resBuffer, contentType } = await getImageFromAlchemy(src);
 
-      await saveFileToS3({
+      await saveFileToS3AndCache({
         pathname: `collection/${src}`,
         body: resBuffer,
         ContentType: contentType || "image/jpeg",

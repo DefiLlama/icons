@@ -68,7 +68,7 @@ export const getFileFromS3 = async (key: string) => {
 
     const data = await S3_CLIENT.send(command);
 
-    return data.Body;
+    return data;
   } catch (error) {
     console.log("key attempted: " + key);
     console.log(error);
