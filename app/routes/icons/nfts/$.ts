@@ -41,9 +41,7 @@ const getImageFromAlchemy = async (src: string) => {
 
 const getImageFromLlamaCollections = async (src: string) => {
   try {
-    const res = await fetch(`https://ezy8r863f5.execute-api.eu-central-1.amazonaws.com/collections`).then((response) =>
-      response.json(),
-    );
+    const res = await fetch(`https://nft.llama.fi/collections`).then((response) => response.json());
 
     const collection = res.find((collection: any) => collection.collectionId == src);
 
