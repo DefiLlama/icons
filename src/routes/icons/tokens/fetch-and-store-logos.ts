@@ -1,18 +1,28 @@
-import { saveFileToS3AndCache } from "~/modules/cache-client";
-import { resToBuffer } from "~/modules/response";
-import { checkIfFileExists } from "~/modules/s3-client";
+import { getCache, saveFileToS3AndCache } from "../../../utils/cache-client";
+import { resToBuffer } from "../../../utils/response";
+import { doesFileExistInS3 } from "../../../utils/s3-client";
+import { compileTokenList } from "../../token-list";
 
-export const loader = async () => {
+const CACHE_KEY = "token-list";
+
+export default async () => {
   try {
-    // fetch token list
-    const tokenList = await fetch("https://icons.llamao.fi/token-list").then((res) => res.json());
+    let tokenList: { tokens: { [chain: number]: { [token: string]: string } } };
+    const cached = await getCache(CACHE_KEY);
+    if (cached) {
+      const { Body } = cached;
+      tokenList = JSON.parse(Body.toString("utf-8"));
+    } else {
+      tokenList = await compileTokenList();
+    }
+
     let processed = 0;
 
     for (const chain in tokenList.tokens) {
       for (const token in tokenList.tokens[chain]) {
         const imgUrl = tokenList.tokens[chain][token];
         if (imgUrl.startsWith("https://assets.coingecko.com")) {
-          const exists = await checkIfFileExists(`token/${chain}/${token}`);
+          const exists = await doesFileExistInS3(`token/${chain}/${token}`);
 
           if (!exists) {
             const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
@@ -21,8 +31,8 @@ export const loader = async () => {
               const resBuffer = await resToBuffer(tokenImage);
 
               await saveFileToS3AndCache({
-                pathname: `token/${chain}/${token}`,
-                body: resBuffer,
+                Key: `token/${chain}/${token}`,
+                Body: resBuffer,
                 ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
               });
 

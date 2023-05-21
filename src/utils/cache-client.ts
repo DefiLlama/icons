@@ -71,9 +71,12 @@ export const purgeCloudflareCache = async (Key: string) => {
   return true;
 };
 
-export const saveFileToS3AndCache = async (payload: { Key: string; Body: Buffer; ContentType: string }) => {
+export const saveFileToS3AndCache = async (
+  payload: { Key: string; Body: Buffer; ContentType: string },
+  ttl?: string | number,
+) => {
   try {
-    const [resS3, resRedis] = await Promise.all([saveFileToS3(payload), setCache(payload)]);
+    const [resS3, resRedis] = await Promise.all([saveFileToS3(payload), setCache(payload, ttl)]);
     return resS3 && resRedis;
   } catch (error) {
     console.error("[error] [cache] [failed to save]", payload.Key);
@@ -97,7 +100,7 @@ export const deleteFileFromS3AndCache = async (Key: string) => {
   }
 };
 
-export const getFileFromS3OrCacheBuffer = async (Key: string) => {
+export const getFileFromS3OrCacheBuffer = async (Key: string, ttl?: string | number) => {
   try {
     const cache = await getCache(Key);
     const cachedBuffer = cache?.Body ?? null;
@@ -111,7 +114,7 @@ export const getFileFromS3OrCacheBuffer = async (Key: string) => {
     }
     const { Body, ContentType } = file;
 
-    await setCache({ Key, Body, ContentType });
+    await setCache({ Key, Body, ContentType }, ttl);
     return Body;
   } catch (error) {
     console.error("[error] [cache] [failed to get S3 or redis]", Key);

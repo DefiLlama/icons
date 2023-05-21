@@ -1,4 +1,4 @@
-import { setCache, getCache } from "../utils/cache-client";
+import { setCache, getCache, saveFileToS3AndCache } from "../utils/cache-client";
 import { forEveryIntervalOf } from "../utils/cache-control-helper";
 
 const oneInchChains = {
@@ -41,6 +41,123 @@ export const geckoChainsMap: { [chain: string]: number } = {
 
 const CACHE_KEY = "token-list";
 
+export const compileTokenList = async () => {
+  const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
+    fetch("https://tokens.uniswap.org/").then((r) => r.json()),
+    fetch("https://token-list.sushi.com/").then((r) => r.json()),
+    fetch("https://defillama-datasets.llama.fi/tokenlist/all.json").then((res) => res.json()),
+    fetch("https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json").then((res) => res.json()),
+  ]);
+
+  const oneInch = await Promise.all(
+    Object.values(oneInchChains).map(async (chainId) =>
+      fetch(`https://tokens.1inch.io/v1.1/${chainId}`).then((r) => r.json()),
+    ),
+  );
+
+  const oneInchList = Object.values(oneInchChains)
+    .map((chainId, i) =>
+      Object.values(oneInch[i] as {}).map((token: any) => ({
+        ...token,
+        chainId,
+      })),
+    )
+    .flat();
+
+  const logoDirectory: { [chain: number]: { [token: string]: string } } = {};
+
+  if (uniList.status === "fulfilled" && uniList.value.tokens) {
+    uniList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
+      const address = token.address.toLowerCase();
+
+      if (!logoDirectory[token.chainId]) {
+        logoDirectory[token.chainId] = {};
+      }
+
+      if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+        logoDirectory[token.chainId][address] = token.logoURI;
+      }
+    });
+  }
+
+  if (sushiList.status === "fulfilled" && sushiList.value.tokens) {
+    sushiList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
+      const address = token.address.toLowerCase();
+
+      if (!logoDirectory[token.chainId]) {
+        logoDirectory[token.chainId] = {};
+      }
+
+      if (token.logoURI && !token.logoURI.startsWith("ipfs://") && !logoDirectory[token.chainId][address]) {
+        logoDirectory[token.chainId][address] = token.logoURI.startsWith("https://")
+          ? token.logoURI
+          : `https://raw.githubusercontent.com/sushiswap/list/master/logos/token-logos/token/${token.logoURI}`;
+      }
+    });
+  }
+
+  if (ownList.status === "fulfilled" && ownList.value) {
+    ownList.value.forEach((token: { address: string; logoURI: string; chainId: number }) => {
+      const address = token.address.toLowerCase();
+
+      if (!logoDirectory[token.chainId]) {
+        logoDirectory[token.chainId] = {};
+      }
+
+      if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+        logoDirectory[token.chainId][address] = token.logoURI;
+      }
+    });
+  }
+
+  if (oneInchList) {
+    oneInchList.forEach((token: { address: string; logoURI: string; chainId: number }) => {
+      const address = token.address.toLowerCase();
+
+      if (!logoDirectory[token.chainId]) {
+        logoDirectory[token.chainId] = {};
+      }
+
+      if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+        logoDirectory[token.chainId][address] = token.logoURI;
+      }
+    });
+  }
+
+  if (geckoList.status === "fulfilled") {
+    geckoList.value.forEach((token: { name: string; logoURI: string; platforms: { [chain: string]: string } }) => {
+      if (token.platforms) {
+        for (const chain in token.platforms) {
+          if (token.platforms[chain] && geckoChainsMap[chain]) {
+            const chainId = geckoChainsMap[chain];
+            const address = token.platforms[chain].toLowerCase();
+
+            if (!logoDirectory[chainId]) {
+              logoDirectory[chainId] = {};
+            }
+
+            if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+              logoDirectory[chainId][address] = token.logoURI;
+            }
+          }
+        }
+      }
+
+      const name = token.name.toLowerCase();
+
+      if (!logoDirectory[0]) {
+        logoDirectory[0] = {};
+      }
+
+      if (!logoDirectory[0][name] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+        logoDirectory[0][name] = token.logoURI;
+      }
+    });
+  }
+
+  return { tokens: logoDirectory };
+};
+
 export default async () => {
   try {
     const cached = await getCache(CACHE_KEY);
@@ -55,120 +172,8 @@ export default async () => {
       });
     }
 
-    const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
-      fetch("https://tokens.uniswap.org/").then((r) => r.json()),
-      fetch("https://token-list.sushi.com/").then((r) => r.json()),
-      fetch("https://defillama-datasets.llama.fi/tokenlist/all.json").then((res) => res.json()),
-      fetch("https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json").then((res) => res.json()),
-    ]);
-
-    const oneInch = await Promise.all(
-      Object.values(oneInchChains).map(async (chainId) =>
-        fetch(`https://tokens.1inch.io/v1.1/${chainId}`).then((r) => r.json()),
-      ),
-    );
-
-    const oneInchList = Object.values(oneInchChains)
-      .map((chainId, i) =>
-        Object.values(oneInch[i] as {}).map((token: any) => ({
-          ...token,
-          chainId,
-        })),
-      )
-      .flat();
-
-    const logoDirectory: { [chain: number]: { [token: string]: string } } = {};
-
-    if (uniList.status === "fulfilled" && uniList.value.tokens) {
-      uniList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
-        const address = token.address.toLowerCase();
-
-        if (!logoDirectory[token.chainId]) {
-          logoDirectory[token.chainId] = {};
-        }
-
-        if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-          logoDirectory[token.chainId][address] = token.logoURI;
-        }
-      });
-    }
-
-    if (sushiList.status === "fulfilled" && sushiList.value.tokens) {
-      sushiList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
-        const address = token.address.toLowerCase();
-
-        if (!logoDirectory[token.chainId]) {
-          logoDirectory[token.chainId] = {};
-        }
-
-        if (token.logoURI && !token.logoURI.startsWith("ipfs://") && !logoDirectory[token.chainId][address]) {
-          logoDirectory[token.chainId][address] = token.logoURI.startsWith("https://")
-            ? token.logoURI
-            : `https://raw.githubusercontent.com/sushiswap/list/master/logos/token-logos/token/${token.logoURI}`;
-        }
-      });
-    }
-
-    if (ownList.status === "fulfilled" && ownList.value) {
-      ownList.value.forEach((token: { address: string; logoURI: string; chainId: number }) => {
-        const address = token.address.toLowerCase();
-
-        if (!logoDirectory[token.chainId]) {
-          logoDirectory[token.chainId] = {};
-        }
-
-        if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-          logoDirectory[token.chainId][address] = token.logoURI;
-        }
-      });
-    }
-
-    if (oneInchList) {
-      oneInchList.forEach((token: { address: string; logoURI: string; chainId: number }) => {
-        const address = token.address.toLowerCase();
-
-        if (!logoDirectory[token.chainId]) {
-          logoDirectory[token.chainId] = {};
-        }
-
-        if (!logoDirectory[token.chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-          logoDirectory[token.chainId][address] = token.logoURI;
-        }
-      });
-    }
-
-    if (geckoList.status === "fulfilled") {
-      geckoList.value.forEach((token: { name: string; logoURI: string; platforms: { [chain: string]: string } }) => {
-        if (token.platforms) {
-          for (const chain in token.platforms) {
-            if (token.platforms[chain] && geckoChainsMap[chain]) {
-              const chainId = geckoChainsMap[chain];
-              const address = token.platforms[chain].toLowerCase();
-
-              if (!logoDirectory[chainId]) {
-                logoDirectory[chainId] = {};
-              }
-
-              if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-                logoDirectory[chainId][address] = token.logoURI;
-              }
-            }
-          }
-        }
-
-        const name = token.name.toLowerCase();
-
-        if (!logoDirectory[0]) {
-          logoDirectory[0] = {};
-        }
-
-        if (!logoDirectory[0][name] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-          logoDirectory[0][name] = token.logoURI;
-        }
-      });
-    }
-
-    const payload = JSON.stringify({ tokens: logoDirectory });
+    const tokenList = await compileTokenList();
+    const payload = JSON.stringify(tokenList);
 
     // convert the payload to a node.js buffer then put into cache using the setCache function
     const buffer = Buffer.from(payload);
