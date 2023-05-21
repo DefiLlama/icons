@@ -1,8 +1,6 @@
 import type { ReadStream } from "fs";
 import { createReadStream, statSync, readdirSync } from "fs";
-import type { Readable } from "stream";
 import path from "path";
-import { PassThrough } from "stream";
 import type { FitEnum } from "sharp";
 import sharp from "sharp";
 import { getCache, setCache } from "./cache-client";
