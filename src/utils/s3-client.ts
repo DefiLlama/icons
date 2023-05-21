@@ -51,12 +51,15 @@ export const saveFileToS3 = async ({ Key, Body, ContentType }: { Key: string; Bo
 export const getFileFromS3 = async (key: string) => {
   try {
     const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
-
     const res = await S3_CLIENT.send(command);
     const data = await res.Body?.transformToByteArray();
     const ContentType = res.ContentType;
 
-    return data ? { Body: Buffer.from(data), ContentType } : null;
+    if (!data || !ContentType || data.length === 0) {
+      return null;
+    }
+
+    return { Body: Buffer.from(data), ContentType };
   } catch (error) {
     console.error("[error] [S3] [failed to get]", key);
     console.error(error);

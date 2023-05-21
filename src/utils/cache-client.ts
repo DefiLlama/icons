@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { saveFileToS3, getFileFromS3 } from "./s3-client";
+import { saveFileToS3, getFileFromS3, deleteFileFromS3 } from "./s3-client";
 
 const REDIS_URL = process.env.REDIS_URL as string;
 
@@ -37,11 +37,11 @@ export const setCache = async (payload: { Key: string; Body: Buffer; ContentType
 
 export const getCache = async (Key: string) => {
   try {
-    const buffer = await redis.getBuffer(Key);
-    if (buffer === null) {
+    const res = await redis.get(Key);
+    if (res === null) {
       return null;
     }
-    const cacheObject: RedisCacheObject = JSON.parse(buffer.toString());
+    const cacheObject: RedisCacheObject = JSON.parse(res);
     const payload = {
       Key,
       Body: Buffer.from(cacheObject.Body, "base64"),
@@ -62,38 +62,45 @@ export const deleteCache = async (Key: string) => {
   } catch (error) {
     console.error("[error] [cache] [failed to delete]", Key);
     console.error(error);
-    return null;
+    return false;
   }
+};
+
+export const purgeCloudflareCache = async (Key: string) => {
+  // TODO: purge Cloudflare cache for both API and public bucket
+  return true;
 };
 
 export const saveFileToS3AndCache = async (payload: { Key: string; Body: Buffer; ContentType: string }) => {
   try {
-    await saveFileToS3(payload);
-    await setCache(payload);
-    return true;
+    const [resS3, resRedis] = await Promise.all([saveFileToS3(payload), setCache(payload)]);
+    return resS3 && resRedis;
   } catch (error) {
-    console.error("Error saving file to S3 and cache: ", payload.Key);
+    console.error("[error] [cache] [failed to save]", payload.Key);
     console.error(error);
-    return null;
+    return false;
   }
 };
 
 export const deleteFileFromS3AndCache = async (Key: string) => {
   try {
-    await deleteCache(Key);
-    await getFileFromS3(Key);
-    return true;
+    const [resS3, resRedis, resCloudflare] = await Promise.all([
+      deleteCache(Key),
+      deleteFileFromS3(Key),
+      purgeCloudflareCache(Key),
+    ]);
+    return resS3 && resRedis && resCloudflare;
   } catch (error) {
-    console.error("Error deleting file from S3 and cache: ", Key);
+    console.error("[error] [cache] [failed to delete]", Key);
     console.error(error);
-    return null;
+    return false;
   }
 };
 
 export const getFileFromS3OrCacheBuffer = async (Key: string) => {
   try {
     const cache = await getCache(Key);
-    const cachedBuffer = cache?.body ? Buffer.from(cache.body, "base64") : null;
+    const cachedBuffer = cache?.Body ?? null;
     if (cachedBuffer !== null) {
       return cachedBuffer;
     }
@@ -104,15 +111,10 @@ export const getFileFromS3OrCacheBuffer = async (Key: string) => {
     }
     const { Body, ContentType } = file;
 
-    const _data = await Body?.transformToByteArray();
-    if (_data) {
-      await setCache(Key, Buffer.from(_data), ContentType);
-      return Buffer.from(_data);
-    } else {
-      return null;
-    }
+    await setCache({ Key, Body, ContentType });
+    return Body;
   } catch (error) {
-    console.error("Error getting file from S3 or cache: ", Key);
+    console.error("[error] [cache] [failed to get S3 or redis]", Key);
     console.error(error);
     return null;
   }
