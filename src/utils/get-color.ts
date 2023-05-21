@@ -1,6 +1,7 @@
 import Vibrant from "node-vibrant";
 import { shade } from "polished";
 import { hex } from "wcag-contrast";
+import { MAX_AGE_1_YEAR } from "./cache-control-helper";
 
 export const getColor = async (path?: string) => {
   let color = defaultColor;
@@ -24,14 +25,14 @@ export const getColor = async (path?: string) => {
       }
     }
   } catch (error) {
-    console.log(`Couldn't get color from ${path}`);
+    console.error(`[error] [get color] ${path}`);
   } finally {
     return new Response(color, {
       headers: {
         "content-type": "text/plain;charset=UTF-8",
         ...(color !== defaultColor && {
-          "Cache-Control": "public, max-age=2592000",
-          "CDN-Cache-Control": "public, max-age=31536000",
+          "Cache-Control": MAX_AGE_1_YEAR,
+          "CDN-Cache-Control": MAX_AGE_1_YEAR,
         }),
       },
       status: 200,
