@@ -144,6 +144,10 @@ export const loader = async ({ params, request }: LoaderArgs) => {
       throw new Error(`${src}: Couldn't find token`);
     }
 
+    if (!tokenList.tokens[chainId][tokenAddress].startsWith("http")) {
+      throw new Error(`${src}: Token image url is invalid`);
+    }
+
     const isBlacklisted = blacklistedTokens.includes(tokenAddress.toLowerCase());
     if (isBlacklisted) {
       throw new Error(`${src}: Token is blacklisted`);
