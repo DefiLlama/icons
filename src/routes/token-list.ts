@@ -45,9 +45,8 @@ export default async () => {
   try {
     const cached = await getCache(CACHE_KEY);
     if (cached) {
-      const { body, ContentType } = cached;
-      const decoded = Buffer.from(body, "base64").toString("utf-8");
-      return new Response(decoded, {
+      const { Body, ContentType } = cached;
+      return new Response(Body, {
         headers: {
           "Content-Type": ContentType,
           "Cache-Control": forEveryIntervalOf(3600),
@@ -173,7 +172,14 @@ export default async () => {
 
     // convert the payload to a node.js buffer then put into cache using the setCache function
     const buffer = Buffer.from(payload);
-    await setCache(CACHE_KEY, buffer, "application/json", forEveryIntervalOf(3600));
+    await setCache(
+      {
+        Key: CACHE_KEY,
+        Body: buffer,
+        ContentType: "application/json",
+      },
+      forEveryIntervalOf(3600),
+    );
 
     return new Response(payload, {
       headers: {
