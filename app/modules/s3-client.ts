@@ -22,13 +22,7 @@ export const doesFileExistInS3 = async (key: string): Promise<boolean> => {
 
     return true;
   } catch (error) {
-    console.log(error);
-
-    if ((error as any).name === "NotFound") {
-      return false;
-    }
-
-    throw error;
+    return false;
   }
 };
 
@@ -55,7 +49,7 @@ export const saveFileToS3 = async ({
   } catch (error) {
     console.log(error);
 
-    throw error;
+    return false;
   }
 };
 
@@ -70,14 +64,9 @@ export const getFileFromS3 = async (key: string) => {
 
     return data;
   } catch (error) {
-    if ((error as any).Code === "NoSuchKey") {
-      console.log("no such key: ", key);
-      return null;
-    }
     console.log("key attempted: " + key);
     console.log(error);
 
-    // throw error;
     return null;
   }
 };
@@ -89,14 +78,10 @@ export const checkIfFileExists = async (key: string) => {
       Key: key,
     });
 
-    const data = await S3_CLIENT.send(command);
+    await S3_CLIENT.send(command);
 
-    return data.$metadata.httpStatusCode === 200;
+    return true;
   } catch (error) {
-    if ((error as any).name === "NotFound") {
-      return false;
-    }
-
-    throw error;
+    return false;
   }
 };
