@@ -32,6 +32,10 @@ export const doesFileExistInS3 = async (key: string) => {
     await S3_CLIENT.send(command);
     return true;
   } catch (error) {
+    if ((error as any).Code === "NoSuchKey") {
+      return false;
+    }
+    console.error("[error] [S3] [failed to check]", key);
     console.error(error);
     return false;
   }
@@ -43,6 +47,7 @@ export const saveFileToS3 = async ({ Key, Body, ContentType }: { Key: string; Bo
     await S3_CLIENT.send(command);
     return true;
   } catch (error) {
+    console.error("[error] [S3] [failed to save]", Key);
     console.error(error);
     return false;
   }
@@ -61,6 +66,9 @@ export const getFileFromS3 = async (key: string) => {
 
     return { Body: Buffer.from(data), ContentType };
   } catch (error) {
+    if ((error as any).Code === "NoSuchKey") {
+      return null;
+    }
     console.error("[error] [S3] [failed to get]", key);
     console.error(error);
     return null;
