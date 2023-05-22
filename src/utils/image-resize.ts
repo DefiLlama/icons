@@ -125,27 +125,24 @@ export const handleImageResize = async (req: Request, res: Response) => {
     const pathTail = pathParts.slice(3).join("/");
 
     if (!Object.hasOwn(ASSETS_ROOT_MAP, pathRoot) || pathParts.length < 3 || pathTail.length > 2) {
-      res.status(403).send("NO");
-      return;
+      return res.status(403).send("NO");
     }
 
     assetsRoot = ASSETS_ROOT_MAP[pathRoot];
     if (!assetsRoot) {
       // TODO: handle token icons
-      res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
-      return;
+      return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
     }
 
     const image = await getImage(pathTail, assetsRoot);
     if (!image) {
-      res
+      return res
         .status(404)
         .set({
           "Cache-Control": MAX_AGE_4_HOURS,
           "CDN-Cache-Control": MAX_AGE_4_HOURS,
         })
         .send("NOT FOUND");
-      return;
     }
 
     let _contentType: string;
@@ -162,7 +159,7 @@ export const handleImageResize = async (req: Request, res: Response) => {
       _payload = payload;
     }
 
-    res
+    return res
       .status(200)
       .set({
         "Content-Type": _contentType,
@@ -170,11 +167,12 @@ export const handleImageResize = async (req: Request, res: Response) => {
         "CDN-Cache-Control": MAX_AGE_1_YEAR,
       })
       .send(_payload);
-    return;
   } catch (err) {
     console.error(`[error] [handleImageResize] ${req.url}`, err);
-    res.status(500).set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES }).send("ERROR");
-    return;
+    return res
+      .status(500)
+      .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
+      .send("ERROR");
   }
 };
 
@@ -244,13 +242,13 @@ export const getImage = async (src: string, assetsRoot?: string) => {
       await image.metadata();
       return image;
     } else if (src.startsWith("http")) {
-      const res = await fetch(src);
+      const res = await fetch(src.replace("/thumb/", "/large/"));
       return await resToImage(res);
     } else {
       return null;
     }
   } catch (error) {
-    console.error(`[error] [readFile]`, error);
+    console.error(`[error] [getImage]`, error);
     return null;
   }
 };

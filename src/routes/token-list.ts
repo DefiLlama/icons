@@ -1,5 +1,14 @@
+import { Response } from "express";
 import { setCache, getCache, saveFileToS3AndCache } from "../utils/cache-client";
 import { forEveryIntervalOf } from "../utils/cache-control-helper";
+
+export type TokenList = {
+  tokens: {
+    [chain: number]: {
+      [token: string]: string;
+    };
+  };
+};
 
 const oneInchChains = {
   ethereum: 1,
@@ -41,7 +50,7 @@ export const geckoChainsMap: { [chain: string]: number } = {
 
 const CACHE_KEY = "token-list";
 
-export const compileTokenList = async () => {
+export const compileTokenList = async (): Promise<TokenList> => {
   const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
     fetch("https://tokens.uniswap.org/").then((r) => r.json()),
     fetch("https://token-list.sushi.com/").then((r) => r.json()),
@@ -158,18 +167,20 @@ export const compileTokenList = async () => {
   return { tokens: logoDirectory };
 };
 
-export default async () => {
+export default async (res: Response) => {
   try {
     const cached = await getCache(CACHE_KEY);
     if (cached) {
       const { Body, ContentType } = cached;
-      return new Response(Body, {
-        headers: {
-          "Content-Type": ContentType,
+      res
+        .status(200)
+        .set({
+          "content-type": ContentType,
           "Cache-Control": forEveryIntervalOf(3600),
           "CDN-Cache-Control": forEveryIntervalOf(3600),
-        },
-      });
+        })
+        .send(Body);
+      return;
     }
 
     const tokenList = await compileTokenList();
@@ -186,24 +197,26 @@ export default async () => {
       forEveryIntervalOf(3600),
     );
 
-    return new Response(payload, {
-      headers: {
+    res
+      .status(200)
+      .set({
         "content-type": "application/json",
         "Cache-Control": forEveryIntervalOf(3600),
         "CDN-Cache-Control": forEveryIntervalOf(3600),
-      },
-      status: 200,
-    });
+      })
+      .send(payload);
+    return;
   } catch (error: unknown) {
     console.error(`[error] [token-list]`);
     console.error(error);
-    return new Response(JSON.stringify({ tokens: {} }), {
-      headers: {
+    res
+      .status(500)
+      .set({
         "content-type": "application/json",
         "Cache-Control": "max-age=60, must-revalidate",
         "CDN-Cache-Control": "max-age=60, must-revalidate",
-      },
-      status: 200,
-    });
+      })
+      .send(JSON.stringify({ tokens: {} }));
+    return;
   }
 };

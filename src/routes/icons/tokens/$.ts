@@ -1,8 +1,10 @@
 import { getAddress } from "ethers";
-import { extractParams, resizeImageBuffer } from "../../../utils/image-resize";
+import { extractParams, getCacheKey, getImage, resizeImage, resizeImageBuffer } from "../../../utils/image-resize";
 import { resToBuffer } from "../../../utils/response";
-import { getFileFromS3OrCacheBuffer, saveFileToS3AndCache } from "../../../utils/cache-client";
+import { getCache, getFileFromS3OrCacheBuffer, saveFileToS3AndCache, setCache } from "../../../utils/cache-client";
 import { Request, Response } from "express";
+import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS, forEveryIntervalOf } from "../../../utils/cache-control-helper";
+import { TokenList, compileTokenList } from "../../token-list";
 
 const chainIconUrls: { [chainId: number]: string } = {
   1: "ethereum",
@@ -104,12 +106,96 @@ const blacklistedTokens = [
 
 // express app handler for route /tokens/:chainId/:tokenAddress
 export default async (req: Request, res: Response) => {
-  // if the original req was sent to example.org/token/123/0x1234?w=100&h=100&fit=cover
-  // then chainId will be "123" and tokenAddress will be "0x1234"
+  const cacheKey = getCacheKey(req);
+  if (!cacheKey) {
+    return res
+      .status(400)
+      .set({
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      })
+      .send("BAD REQUEST");
+  }
+
   const { chainId, tokenAddress } = req.params;
   const resizeParams = extractParams(req);
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    return res
+      .status(200)
+      .set({
+        "Content-Type": cached.ContentType,
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      })
+      .send(cached.Body);
+  }
 
-  const resized = await resizeImageBuffer(resizeParams, null);
+  let _contentType: string;
+  let _payload: Buffer;
+
+  if (tokenAddress === "0x0000000000000000000000000000000000000000" && chainIconUrls[Number(chainId)]) {
+    const image = await getImage(chainIconUrls[Number(chainId)], "assets/agg_icons");
+    if (!image) {
+      return res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
+    }
+    const { contentType, payload } = await resizeImage(resizeParams, image);
+    _contentType = contentType;
+    _payload = payload;
+  } else {
+    const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${tokenAddress}`);
+    if (buffer) {
+      const { contentType, payload } = await resizeImageBuffer(resizeParams, buffer);
+      _contentType = contentType;
+      _payload = payload;
+    } else {
+      let tokenList: TokenList;
+      const tokenListCache = await getCache("token-list");
+      if (tokenListCache) {
+        tokenList = JSON.parse(tokenListCache.Body.toString());
+      } else {
+        tokenList = await compileTokenList();
+        const tokenListPayload = JSON.stringify(tokenList);
+        const tokenListBuffer = Buffer.from(tokenListPayload);
+        await setCache(
+          { Key: "token-list", Body: tokenListBuffer, ContentType: "application/json" },
+          forEveryIntervalOf(3600),
+        );
+      }
+      const tokens = tokenList.tokens[Number(chainId)];
+      const imgUrl = tokens ? tokens[tokenAddress] : null;
+      const image = imgUrl ? await getImage(imgUrl) : null;
+      if (!tokens || !imgUrl || !image) {
+        return res
+          .status(404)
+          .set({
+            "Cache-Control": MAX_AGE_4_HOURS,
+            "CDN-Cache-Control": MAX_AGE_4_HOURS,
+          })
+          .send("NOT FOUND");
+      }
+      const { contentType, payload } = await resizeImage(resizeParams, image);
+      _contentType = contentType;
+      _payload = payload;
+    }
+
+    await setCache({ Key: cacheKey, Body: _payload, ContentType: _contentType });
+
+    return res
+      .status(200)
+      .set({
+        "Content-Type": _contentType,
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      })
+      .send(_payload);
+  }
 };
 
 const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
