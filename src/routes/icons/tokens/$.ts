@@ -121,6 +121,7 @@ export default async (req: Request, res: Response) => {
   const resizeParams = extractParams(req);
   const cached = await getCache(cacheKey);
   if (cached) {
+    // if requested processed image is cached, just return it
     return res
       .status(200)
       .set({
@@ -135,6 +136,7 @@ export default async (req: Request, res: Response) => {
   let _payload: Buffer;
 
   if (tokenAddress === "0x0000000000000000000000000000000000000000" && chainIconUrls[Number(chainId)]) {
+    // if tokenAddress is 0x0, return chain icon
     const image = await getImage(chainIconUrls[Number(chainId)], "assets/agg_icons");
     if (!image) {
       return res
@@ -149,17 +151,22 @@ export default async (req: Request, res: Response) => {
     _contentType = contentType;
     _payload = payload;
   } else {
+    // check if we cached the HD token image on S3 or redis
     const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${tokenAddress}`);
     if (buffer) {
+      // if we have the HD token image, resize it and return
       const { contentType, payload } = await resizeImageBuffer(resizeParams, buffer);
       _contentType = contentType;
       _payload = payload;
     } else {
+      // if we don't have the HD token image, will need to fetch it using the url from token-list
+      // first we need to get the token list
       let tokenList: TokenList;
       const tokenListCache = await getCache("token-list");
       if (tokenListCache) {
         tokenList = JSON.parse(tokenListCache.Body.toString());
       } else {
+        // if we don't have the token list cached, compile it and cache it on redis
         tokenList = await compileTokenList();
         const tokenListPayload = JSON.stringify(tokenList);
         const tokenListBuffer = Buffer.from(tokenListPayload);
@@ -168,6 +175,8 @@ export default async (req: Request, res: Response) => {
           forEveryIntervalOf(3600),
         );
       }
+
+      // now we have the token list, fetch the actual token image
       const tokens = tokenList.tokens[Number(chainId)];
       const imgUrl = tokens ? tokens[tokenAddress] : null;
       const image = imgUrl ? await getImage(imgUrl) : null;
@@ -180,7 +189,18 @@ export default async (req: Request, res: Response) => {
           })
           .send("NOT FOUND");
       }
-      const { contentType, payload } = await resizeImage(resizeParams, image);
+      const rawBuffer = await image.toBuffer();
+      const rawFormat = (await image.metadata()).format;
+      const rawContentType = `image/${rawFormat}`;
+      // save the HD token image to S3 and cache it on redis
+      await saveFileToS3AndCache({
+        Key: `token/${chainId}/${tokenAddress}`,
+        Body: rawBuffer,
+        ContentType: rawContentType,
+      });
+
+      // generate the resized token image to return
+      const { contentType, payload } = await resizeImageBuffer(resizeParams, rawBuffer);
       _contentType = contentType;
       _payload = payload;
     }
@@ -196,27 +216,4 @@ export default async (req: Request, res: Response) => {
       })
       .send(_payload);
   }
-};
-
-const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
-  try {
-    // avax
-    if (chainId === 43114) {
-      const joeImage = await fetch(
-        `https://raw.githubusercontent.com/traderjoe-xyz/joe-tokenlists/main/logos/${getAddress(
-          tokenAddress,
-        )}/logo.png`,
-      );
-
-      return isValidImage(joeImage) ? joeImage : null;
-    }
-  } catch (error) {
-    return null;
-  }
-};
-
-const isValidImage = (res: globalThis.Response) => {
-  const imgType = res.headers.get("content-type");
-
-  return imgType && imgType.startsWith("image") ? true : false;
 };
