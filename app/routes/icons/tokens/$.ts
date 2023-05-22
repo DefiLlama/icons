@@ -169,14 +169,14 @@ export const loader = async ({ params, request }: LoaderArgs) => {
             }/assets/${getAddress(tokenAddress)}/logo.png`,
           );
 
-          if (isValidImage(trustWalletImage)) {
+          if (await isValidImage(trustWalletImage)) {
             tokenImage = trustWalletImage;
           } else {
             const pancakeswapImage = await fetch(
               `https://tokens.pancakeswap.finance/images/${getAddress(tokenAddress)}.png`,
             );
 
-            if (isValidImage(pancakeswapImage)) {
+            if (await isValidImage(pancakeswapImage)) {
               tokenImage = pancakeswapImage;
             } else {
               throw new Error(`${src}: Failed to fetch token image`);
@@ -215,15 +215,30 @@ const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
         )}/logo.png`,
       );
 
-      return isValidImage(joeImage) ? joeImage : null;
+      return (await isValidImage(joeImage)) ? joeImage : null;
     }
   } catch (error) {
     return null;
   }
 };
 
-const isValidImage = (res: Response) => {
+const isValidImage = async (res: Response) => {
   const imgType = res.headers.get("content-type");
+  const resBuffer = await resToBuffer(res);
 
-  return imgType && imgType.startsWith("image") ? true : false;
+  // check if its valid image using magic numbers
+  return isImage(resBuffer) && (imgType && imgType.startsWith("image") ? true : false);
+};
+
+const isImage = (buffer: Buffer) => {
+  const magicNumbers = {
+    jpg: "ffd8ffe0",
+    png: "89504e47",
+    gif: "47494638",
+    webp: "52494646",
+    svg: "3c3f786d6c",
+  };
+
+  const magicNumberInBody = buffer.toString("hex", 0, 4);
+  return Object.values(magicNumbers).includes(magicNumberInBody);
 };
