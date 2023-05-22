@@ -4,8 +4,8 @@ import path from "path";
 import type { FitEnum } from "sharp";
 import sharp from "sharp";
 import { getCache, setCache, sluggify } from "./cache-client";
-import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES } from "./cache-control-helper";
-import { Request } from "express";
+import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES, MAX_AGE_4_HOURS } from "./cache-control-helper";
+import { Request, Response } from "express";
 import { resToBuffer, resToImage } from "./response";
 
 interface ResizeParams {
@@ -58,14 +58,123 @@ export const resizeImageBuffer = async (params: ResizeParams, buffer: Buffer) =>
   };
 };
 
-export const requestToCacheKey = (request: Request) => {
+export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
+  const { width, height, fit } = params;
+  // determine if the image is a gif
+  const isGIF = (await image.metadata()).format === "gif";
+  const sharpTransforms = isGIF
+    ? sharp(await image.toBuffer(), { animated: true })
+        .resize({
+          width,
+          height,
+          fit,
+        })
+        .gif({ dither: 0 })
+    : image
+        .resize({
+          width,
+          height,
+          fit,
+        })
+        .webp({ lossless: true });
+
+  const payload = await sharpTransforms.toBuffer();
+  return {
+    contentType: isGIF ? "image/gif" : "image/webp",
+    payload,
+  };
+};
+
+export const getCacheKey = (request: Request) => {
   try {
     const url = new URL(request.url);
     const fullPath = (url.pathname + url.search).replace(/^\//, "").replace(/\/$/, "");
     return sluggify(fullPath);
   } catch (err) {
-    console.error(`[error] [requestToCacheKey] ${request.url}`, err);
+    console.error(`[error] [getCacheKey] ${request.url}`, err);
     return null;
+  }
+};
+
+export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } = {
+  "/icons/agg_icons": "assets/agg_icons",
+  "/icons/chains": "assets/chains",
+  "/icons/directory": "assets/directory",
+  "/icons/extension": "assets/extension",
+  "/icons/liquidations": "assets/liquidations",
+  "/icons/memes": "assets/memes",
+  "/icons/misc": "assets/misc",
+  "/icons/nfts": "assets/nfts",
+  "/icons/pegged": "assets/pegged",
+  "/icons/protocols": "assets/protocols",
+  "/icons/tokens": undefined,
+};
+
+export const handleImageResize = async (req: Request, res: Response) => {
+  try {
+    const Key = getCacheKey(req);
+    if (Key === null) {
+      res.status(403).send("NO");
+      return;
+    }
+    const resizeParams = extractParams(req);
+    let assetsRoot: string | undefined;
+    // take the first 2 parts of the path
+    const pathParts = req.path.split("/");
+    const pathRoot = pathParts.slice(0, 3).join("/");
+    const pathTail = pathParts.slice(3).join("/");
+
+    if (!Object.hasOwn(ASSETS_ROOT_MAP, pathRoot) || pathParts.length < 3 || pathTail.length > 2) {
+      res.status(403).send("NO");
+      return;
+    }
+
+    assetsRoot = ASSETS_ROOT_MAP[pathRoot];
+    if (!assetsRoot) {
+      // TODO: handle token icons
+      res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
+      return;
+    }
+
+    const image = await getImage(pathTail, assetsRoot);
+    if (!image) {
+      res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
+      return;
+    }
+
+    let _contentType: string;
+    let _payload: Buffer;
+
+    const cacheObject = await getCache(Key);
+    if (cacheObject) {
+      _contentType = cacheObject.ContentType;
+      _payload = cacheObject.Body;
+    } else {
+      const { payload, contentType } = await resizeImage(resizeParams, image);
+      await setCache({ Key, Body: payload, ContentType: contentType });
+      _contentType = contentType;
+      _payload = payload;
+    }
+
+    res
+      .status(200)
+      .set({
+        "Content-Type": _contentType,
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      })
+      .send(_payload);
+    return;
+  } catch (err) {
+    console.error(`[error] [handleImageResize] ${req.url}`, err);
+    res.status(500).set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES }).send("ERROR");
+    return;
   }
 };
 
@@ -97,7 +206,7 @@ export const getResizeImageResponse = async (cacheKey: string, params: ResizePar
   } catch (error) {
     console.error(`[error] [getResizeImageResponse] ${cacheKey} ${JSON.stringify(params)}`);
     console.error(error);
-    return new Response(`error reeeeeee`, {
+    return new Response(`ERROR`, {
       headers: {
         "Cache-Control": MAX_AGE_10_MINUTES,
         "CDN-Cache-Control": MAX_AGE_10_MINUTES,

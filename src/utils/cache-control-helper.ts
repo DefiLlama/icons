@@ -9,3 +9,4 @@ export const forEveryIntervalOf = (seconds: number) => {
 
 export const MAX_AGE_1_YEAR = `public, max-age=31536000`;
 export const MAX_AGE_10_MINUTES = `public, max-age=600`;
+export const MAX_AGE_4_HOURS = `public, max-age=14400`;
