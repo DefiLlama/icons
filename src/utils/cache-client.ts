@@ -5,6 +5,13 @@ const REDIS_URL = process.env.REDIS_URL as string;
 
 const redis = new Redis(REDIS_URL);
 
+export const sluggify = (input: string) => {
+  const slug = decodeURIComponent(input)
+    .toLowerCase()
+    .replace(/[^\w\/]+/g, "-");
+  return slug.replace(/^-+/, "").replace(/-+$/, "");
+};
+
 /**
  * RedisCacheObject is the object stored in Redis
  *

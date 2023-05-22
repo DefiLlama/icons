@@ -1,14 +1,8 @@
-import type { LoaderArgs } from "@remix-run/node";
 import { getAddress } from "ethers";
-import {
-  extractParams,
-  handleError,
-  readFileAsStream,
-  streamingResize,
-  streamingResizeBuffer,
-} from "~/modules/image-resize";
-import { resToBuffer } from "~/modules/response";
-import { getFileFromS3OrCacheBuffer, saveFileToS3AndCache } from "~/modules/cache-client";
+import { extractParams, resizeImageBuffer } from "../../../utils/image-resize";
+import { resToBuffer } from "../../../utils/response";
+import { getFileFromS3OrCacheBuffer, saveFileToS3AndCache } from "../../../utils/cache-client";
+import { Request, Response } from "express";
 
 const chainIconUrls: { [chainId: number]: string } = {
   1: "ethereum",
@@ -108,97 +102,14 @@ const blacklistedTokens = [
   "0x4406509b532b111bd39b5b579561001cbf0d7acf",
 ];
 
-export const loader = async ({ params, request }: LoaderArgs) => {
-  // extract all the parameters from the url
-  const { src, width, height, fit } = extractParams(params, request);
+// express app handler for route /tokens/:chainId/:tokenAddress
+export default async (req: Request, res: Response) => {
+  // if the original req was sent to example.org/token/123/0x1234?w=100&h=100&fit=cover
+  // then chainId will be "123" and tokenAddress will be "0x1234"
+  const { chainId, tokenAddress } = req.params;
+  const resizeParams = extractParams(req);
 
-  try {
-    const [chainId, ...tokenAddresses] = src.split("/");
-    const tokenAddress = tokenAddresses.join("/").toLowerCase();
-
-    if (tokenAddress === "0x0000000000000000000000000000000000000000" && chainIconUrls[Number(chainId)]) {
-      // read the image as a stream of bytes
-      const readStream = readFileAsStream(chainIconUrls[Number(chainId)], "assets/agg_icons");
-      // read the image from the file system and stream it through the sharp pipeline
-      return streamingResize({ imageStream: readStream, width, height, fit });
-    }
-
-    const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${tokenAddress}`);
-
-    if (buffer) {
-      return streamingResizeBuffer(buffer, width, height, fit);
-    }
-
-    // fetch token list
-    const tokenList = await fetch("https://icons.llamao.fi/token-list").then((res) => res.json());
-
-    if (!tokenList.tokens) {
-      throw new Error(`${src}: Couldn't fetch tokens list`);
-    }
-
-    if (!tokenList.tokens[chainId]) {
-      throw new Error(`${src}: Couldn't find chain`);
-    }
-
-    if (!tokenList.tokens[chainId][tokenAddress]) {
-      throw new Error(`${src}: Couldn't find token`);
-    }
-
-    const isBlacklisted = blacklistedTokens.includes(tokenAddress.toLowerCase());
-    if (isBlacklisted) {
-      throw new Error(`${src}: Token is blacklisted`);
-    }
-
-    // fetch token image
-    let tokenImage = await fetch(tokenList.tokens[chainId][tokenAddress]);
-
-    if (!isValidImage(tokenImage)) {
-      const fallbackImage = await fallbacksByChain(Number(chainId), tokenAddress);
-
-      if (fallbackImage) {
-        tokenImage = fallbackImage;
-      } else {
-        if (trustWalletChainsMap[Number(chainId)]) {
-          const trustWalletImage = await fetch(
-            `https://raw.githubusercontent.com/rainbow-me/assets/master/blockchains/${
-              trustWalletChainsMap[Number(chainId)]
-            }/assets/${getAddress(tokenAddress)}/logo.png`,
-          );
-
-          if (isValidImage(trustWalletImage)) {
-            tokenImage = trustWalletImage;
-          } else {
-            const pancakeswapImage = await fetch(
-              `https://tokens.pancakeswap.finance/images/${getAddress(tokenAddress)}.png`,
-            );
-
-            if (isValidImage(pancakeswapImage)) {
-              tokenImage = pancakeswapImage;
-            } else {
-              throw new Error(`${src}: Failed to fetch token image`);
-            }
-          }
-        } else {
-          throw new Error(`${src}: Failed to fetch token image`);
-        }
-      }
-    }
-
-    const resBuffer = await resToBuffer(tokenImage);
-
-    await saveFileToS3AndCache({
-      pathname: `token/${chainId}/${tokenAddress}`,
-      body: resBuffer,
-      ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
-    });
-
-    // return transformed image
-    return streamingResizeBuffer(resBuffer, width, height, fit);
-  } catch (error: unknown) {
-    console.log(`${src}: Error: ${error}`);
-    // if the image is not found, or we get any other errors we return different response types
-    return handleError({ error, width, height, fit, defaultImage: true });
-  }
+  const resized = await resizeImageBuffer(resizeParams, null);
 };
 
 const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
@@ -218,7 +129,7 @@ const fallbacksByChain = async (chainId: number, tokenAddress: string) => {
   }
 };
 
-const isValidImage = (res: Response) => {
+const isValidImage = (res: globalThis.Response) => {
   const imgType = res.headers.get("content-type");
 
   return imgType && imgType.startsWith("image") ? true : false;

@@ -3,8 +3,10 @@ import { createReadStream, statSync, readdirSync } from "fs";
 import path from "path";
 import type { FitEnum } from "sharp";
 import sharp from "sharp";
-import { getCache, setCache } from "./cache-client";
+import { getCache, setCache, sluggify } from "./cache-client";
 import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES } from "./cache-control-helper";
+import { Request } from "express";
+import { resToBuffer, resToImage } from "./response";
 
 interface ResizeParams {
   width: number | undefined;
@@ -56,6 +58,17 @@ export const resizeImageBuffer = async (params: ResizeParams, buffer: Buffer) =>
   };
 };
 
+export const requestToCacheKey = (request: Request) => {
+  try {
+    const url = new URL(request.url);
+    const fullPath = (url.pathname + url.search).replace(/^\//, "").replace(/\/$/, "");
+    return sluggify(fullPath);
+  } catch (err) {
+    console.error(`[error] [requestToCacheKey] ${request.url}`, err);
+    return null;
+  }
+};
+
 // cacheKey includes both the path and query params
 export const getResizeImageResponse = async (cacheKey: string, params: ResizeParams, buffer: Buffer) => {
   try {
@@ -94,37 +107,50 @@ export const getResizeImageResponse = async (cacheKey: string, params: ResizePar
   }
 };
 
-export function getSrcPath(src: string, ASSETS_ROOT: string) {
+export function getSrcPath(src: string, assetsRoot: string) {
   let srcPath = null;
 
-  readdirSync(ASSETS_ROOT).forEach((file) => {
+  readdirSync(assetsRoot).forEach((file) => {
     const fileName = file.split(".");
 
     fileName.pop();
 
     if (fileName.join(".").toLowerCase() === src.toLowerCase()) {
-      srcPath = path.join(ASSETS_ROOT, file);
+      srcPath = path.join(assetsRoot, file);
     }
   });
 
   if (!srcPath) {
-    srcPath = path.join(ASSETS_ROOT, src);
+    srcPath = path.join(assetsRoot, src);
   }
 
   return srcPath;
 }
 
-export function readFileAsStream(src: string, ASSETS_ROOT: string): ReadStream {
-  // Local filesystem
-
-  const srcPath = getSrcPath(src, ASSETS_ROOT);
-
-  const fileStat = statSync(srcPath);
-
-  if (!fileStat.isFile()) {
-    throw new Error(`${srcPath} is not a file`);
+export const getImage = async (src: string, assetsRoot?: string) => {
+  try {
+    if (assetsRoot) {
+      const srcPath = getSrcPath(src, assetsRoot);
+      const image = sharp(srcPath);
+      await image.metadata();
+      return image;
+    } else if (src.startsWith("http")) {
+      const res = await fetch(src);
+      return await resToImage(res);
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error(`[error] [readFile]`, error);
+    return null;
   }
+};
 
-  // create a readable stream from the image file
-  return createReadStream(srcPath);
-}
+export const isImage = async (buffer: Buffer) => {
+  try {
+    await sharp(buffer).metadata();
+    return true;
+  } catch (err) {
+    return false;
+  }
+};
