@@ -9,8 +9,10 @@ import tokenListHandler from "./routes/token-list";
 import tokensHandler from "./routes/icons/tokens";
 import fetchAndStoreTokensHandler from "./routes/icons/fetch-and-store-tokens";
 import { handleImageResize } from "./utils/image-resize";
+import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS } from "./utils/cache-control-helper";
 
 const app = express();
+app.disable("x-powered-by");
 
 Sentry.init({ dsn: process.env.SENTRY_DSN });
 
@@ -24,6 +26,17 @@ const logger = (req: Request, _: Response, next: NextFunction) => {
 };
 app.use(logger);
 
+app.use(
+  express.static("public", {
+    setHeaders: (res) => {
+      res.set({
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      });
+    },
+  }),
+);
+
 app.get("/", rootHandler);
 app.get("/token-list", tokenListHandler);
 app.get("/purge", purgeHandler);
@@ -31,6 +44,16 @@ app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
 app.get("/icons/:category/:name", handleImageResize);
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
+
+app.all("*", (_: Request, res: Response) => {
+  res
+    .status(404)
+    .set({
+      "Cache-Control": MAX_AGE_4_HOURS,
+      "CDN-Cache-Control": MAX_AGE_4_HOURS,
+    })
+    .send("NOT FOUND");
+});
 
 const PORT = process.env.PORT || 3000;
 
