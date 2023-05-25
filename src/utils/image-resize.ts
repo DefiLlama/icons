@@ -126,7 +126,13 @@ export const handleImageResize = async (req: Request, res: Response) => {
 
     if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
       console.error(`[error] [handleImageResize] ${req.originalUrl}`);
-      return res.status(403).send("NO");
+      return res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
     }
 
     assetsRoot = ASSETS_ROOT_MAP[category];
