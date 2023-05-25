@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { getCache, saveFileToS3AndCache } from "../../../utils/cache-client";
-import { resToBuffer } from "../../../utils/response";
-import { doesFileExistInS3 } from "../../../utils/s3-client";
-import { compileTokenList } from "../../token-list";
+import { getCache, saveFileToS3AndCache } from "../../utils/cache-client";
+import { resToBuffer } from "../../utils/response";
+import { doesFileExistInS3 } from "../../utils/s3-client";
+import { compileTokenList } from "../token-list";
 
 const CACHE_KEY = "token-list";
 
