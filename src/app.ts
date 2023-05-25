@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
+import * as Sentry from "@sentry/node";
 import { config } from "dotenv";
 config();
 
@@ -11,16 +12,23 @@ import { handleImageResize } from "./utils/image-resize";
 
 const app = express();
 
+Sentry.init({ dsn: process.env.SENTRY_DSN });
+
+app.use(Sentry.Handlers.requestHandler());
+app.use(Sentry.Handlers.errorHandler());
+
 const logger = (req: Request, _: Response, next: NextFunction) => {
   const ip = req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   console.log(`[request] [${req.method}] [${ip}] [${req.url}] [${req.headers["user-agent"]}]`);
   next();
 };
-
 app.use(logger);
 
 app.get("/", rootHandler);
-app.get("/tokens/:chainId/:tokenAddress", tokensHandler);
+app.get("/token-list", tokenListHandler);
+app.get("/purge", purgeHandler);
+app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
+
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
 
 const PORT = process.env.PORT || 3000;

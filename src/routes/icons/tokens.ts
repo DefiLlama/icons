@@ -1,6 +1,4 @@
-import { getAddress } from "ethers";
 import { extractParams, getCacheKey, getImage, resizeImage, resizeImageBuffer } from "../../utils/image-resize";
-import { resToBuffer } from "../../utils/response";
 import { getCache, getFileFromS3OrCacheBuffer, saveFileToS3AndCache, setCache } from "../../utils/cache-client";
 import { Request, Response } from "express";
 import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS, forEveryIntervalOf } from "../../utils/cache-control-helper";
