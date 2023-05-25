@@ -88,11 +88,16 @@ export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
   };
 };
 
-export const getCacheKey = (req: Request) => {
+export const getCacheKey = (req: Request, ignoreQueryParams = false) => {
   try {
     const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
     const url = new URL(fullUrl);
-    const fullPath = (url.pathname + url.search).replace(/^\//, "").replace(/\/$/, "");
+    let fullPath: string;
+    if (!ignoreQueryParams) {
+      fullPath = (url.pathname + url.search).replace(/^\//, "").replace(/\/$/, "");
+    } else {
+      fullPath = url.pathname.replace(/^\//, "").replace(/\/$/, "");
+    }
     return sluggify(fullPath);
   } catch (err) {
     console.error(`[error] [getCacheKey] ${req.originalUrl}`, err);

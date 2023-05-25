@@ -54,7 +54,7 @@ export const handlePalette = async (req: Request, res: Response) => {
       .send("NOT FOUND");
   }
 
-  const Key = getCacheKey(req);
+  const Key = getCacheKey(req, true);
   if (Key === null) {
     return res
       .status(400)
