@@ -1,8 +1,7 @@
 import { config } from "dotenv";
 config();
 
-import type { ReadStream } from "fs";
-import { createReadStream, statSync, readdirSync } from "fs";
+import { readdirSync } from "fs";
 import path from "path";
 import type { FitEnum } from "sharp";
 import sharp from "sharp";
@@ -102,44 +101,40 @@ export const getCacheKey = (req: Request) => {
 };
 
 export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } = {
-  "/icons/agg_icons": "assets/agg_icons",
-  "/icons/chains": "assets/chains",
-  "/icons/directory": "assets/directory",
-  "/icons/extension": "assets/extension",
-  "/icons/liquidations": "assets/liquidations",
-  "/icons/memes": "assets/memes",
-  "/icons/misc": "assets/misc",
-  "/icons/nfts": "assets/nfts",
-  "/icons/pegged": "assets/pegged",
-  "/icons/protocols": "assets/protocols",
-  "/icons/tokens": undefined,
+  "agg_icons": "assets/agg_icons",
+  "chains": "assets/chains",
+  "directory": "assets/directory",
+  "extension": "assets/extension",
+  "liquidations": "assets/liquidations",
+  "memes": "assets/memes",
+  "misc": "assets/misc",
+  "nfts": "assets/nfts",
+  "pegged": "assets/pegged",
+  "protocols": "assets/protocols",
 };
 
 export const handleImageResize = async (req: Request, res: Response) => {
   try {
     const Key = getCacheKey(req);
     if (Key === null) {
-      res.status(403).send("NO");
-      return;
+      return res.status(403).send("NO");
     }
     const resizeParams = extractParams(req);
     let assetsRoot: string | undefined;
     // take the first 2 parts of the path
-    const pathParts = req.path.split("/");
-    const pathRoot = pathParts.slice(0, 3).join("/");
-    const pathTail = pathParts.slice(3).join("/");
+    const { category, name } = req.params;
 
-    if (!Object.hasOwn(ASSETS_ROOT_MAP, pathRoot) || pathParts.length < 3 || pathTail.length > 2) {
+    if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
+      console.error(`[error] [handleImageResize] ${req.originalUrl}`);
       return res.status(403).send("NO");
     }
 
-    assetsRoot = ASSETS_ROOT_MAP[pathRoot];
+    assetsRoot = ASSETS_ROOT_MAP[category];
     if (!assetsRoot) {
-      // TODO: handle token icons
       return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
     }
 
-    const image = await getImage(pathTail, assetsRoot);
+    const image = await getImage(name, assetsRoot);
     if (!image) {
       return res
         .status(404)

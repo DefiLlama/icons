@@ -28,6 +28,7 @@ app.get("/", rootHandler);
 app.get("/token-list", tokenListHandler);
 app.get("/purge", purgeHandler);
 app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
+app.get("/icons/:category/:name", handleImageResize);
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
 
