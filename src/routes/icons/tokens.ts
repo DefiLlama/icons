@@ -204,16 +204,15 @@ export default async (req: Request, res: Response) => {
       _contentType = contentType;
       _payload = payload;
     }
-
-    await setCache({ Key: cacheKey, Body: _payload, ContentType: _contentType });
-
-    return res
-      .status(200)
-      .set({
-        "Content-Type": _contentType,
-        "Cache-Control": MAX_AGE_1_YEAR,
-        "CDN-Cache-Control": MAX_AGE_1_YEAR,
-      })
-      .send(_payload);
   }
+
+  await setCache({ Key: cacheKey, Body: _payload, ContentType: _contentType });
+  return res
+    .status(200)
+    .set({
+      "Content-Type": _contentType,
+      "Cache-Control": MAX_AGE_1_YEAR,
+      "CDN-Cache-Control": MAX_AGE_1_YEAR,
+    })
+    .send(_payload);
 };
