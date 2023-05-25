@@ -1,3 +1,4 @@
+import { Request, Response } from "express";
 import { getCache, saveFileToS3AndCache } from "../../../utils/cache-client";
 import { resToBuffer } from "../../../utils/response";
 import { doesFileExistInS3 } from "../../../utils/s3-client";
@@ -5,7 +6,12 @@ import { compileTokenList } from "../../token-list";
 
 const CACHE_KEY = "token-list";
 
-export default async () => {
+export default async (req: Request, res: Response) => {
+  const { authorization } = req.headers;
+  if (authorization !== "Llama " + process.env.ADMIN_AUTH) {
+    return res.status(403).send("UNAUTHORIZED");
+  }
+
   try {
     let tokenList: { tokens: { [chain: number]: { [token: string]: string } } };
     const cached = await getCache(CACHE_KEY);
@@ -54,7 +60,7 @@ export default async () => {
   }
 };
 
-const isValidImage = (res: Response) => {
+const isValidImage = (res: globalThis.Response) => {
   const imgType = res.headers.get("content-type");
 
   return imgType && imgType.startsWith("image") ? true : false;

@@ -5,7 +5,7 @@ import { Request, Response } from "express";
 export default async (req: Request, res: Response) => {
   const { url } = req.body as { url: string };
   const { authorization } = req.headers;
-  if (authorization !== process.env.CACHE_PURGE_AUTH) {
+  if (authorization !== "Llama " + process.env.ADMIN_AUTH) {
     return res.status(403).send("UNAUTHORIZED");
   }
   if (!url) {
