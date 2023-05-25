@@ -8,7 +8,7 @@ import sharp from "sharp";
 import { getCache, setCache, sluggify } from "./cache-client";
 import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES, MAX_AGE_4_HOURS } from "./cache-control-helper";
 import { Request, Response } from "express";
-import { resToBuffer, resToImage } from "./response";
+import { resToImage } from "./response";
 
 interface ResizeParams {
   width: number | undefined;
