@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config();
+
 import type { ReadStream } from "fs";
 import { createReadStream, statSync, readdirSync } from "fs";
 import path from "path";
@@ -14,8 +17,9 @@ interface ResizeParams {
   fit: keyof FitEnum;
 }
 
-export function extractParams(request: Request): ResizeParams {
-  const searchParams = new URL(request.url).searchParams;
+export function extractParams(req: Request): ResizeParams {
+  const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+  const searchParams = new URL(fullUrl).searchParams;
 
   const width = searchParams.has("w") ? Number.parseInt(searchParams.get("w") ?? "0") : undefined;
   const height = searchParams.has("h") ? Number.parseInt(searchParams.get("h") ?? "0") : undefined;
@@ -85,13 +89,14 @@ export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
   };
 };
 
-export const getCacheKey = (request: Request) => {
+export const getCacheKey = (req: Request) => {
   try {
-    const url = new URL(request.url);
+    const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+    const url = new URL(fullUrl);
     const fullPath = (url.pathname + url.search).replace(/^\//, "").replace(/\/$/, "");
     return sluggify(fullPath);
   } catch (err) {
-    console.error(`[error] [getCacheKey] ${request.url}`, err);
+    console.error(`[error] [getCacheKey] ${req.originalUrl}`, err);
     return null;
   }
 };

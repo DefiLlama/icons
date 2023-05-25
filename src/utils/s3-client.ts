@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config();
+
 import {
   S3Client,
   HeadObjectCommand,

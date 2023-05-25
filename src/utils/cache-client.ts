@@ -1,3 +1,6 @@
+import { config } from "dotenv";
+config();
+
 import Redis from "ioredis";
 import { saveFileToS3, getFileFromS3, deleteFileFromS3 } from "./s3-client";
 
