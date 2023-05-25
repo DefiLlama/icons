@@ -1,7 +1,7 @@
 import { extractParams, getCacheKey, getImage, resizeImage, resizeImageBuffer } from "../../utils/image-resize";
 import { getCache, getFileFromS3OrCacheBuffer, saveFileToS3AndCache, setCache } from "../../utils/cache-client";
 import { Request, Response } from "express";
-import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS, forEveryIntervalOf } from "../../utils/cache-control-helper";
+import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS, ttlForEveryIntervalOf } from "../../utils/cache-control-helper";
 import { TokenList, compileTokenList } from "../token-list";
 
 const chainIconUrls: { [chainId: number]: string } = {
@@ -170,7 +170,7 @@ export default async (req: Request, res: Response) => {
         const tokenListBuffer = Buffer.from(tokenListPayload);
         await setCache(
           { Key: "token-list", Body: tokenListBuffer, ContentType: "application/json" },
-          forEveryIntervalOf(3600),
+          ttlForEveryIntervalOf(3600),
         );
       }
 

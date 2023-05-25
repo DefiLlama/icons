@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { setCache, getCache, saveFileToS3AndCache } from "../utils/cache-client";
-import { forEveryIntervalOf } from "../utils/cache-control-helper";
+import { forEveryIntervalOf, ttlForEveryIntervalOf } from "../utils/cache-control-helper";
 
 export type TokenList = {
   tokens: {
@@ -194,7 +194,7 @@ export default async (res: Response) => {
         Body: buffer,
         ContentType: "application/json",
       },
-      forEveryIntervalOf(3600),
+      ttlForEveryIntervalOf(3600),
     );
 
     res
