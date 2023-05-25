@@ -1,5 +1,4 @@
-import express from "express";
-import pino from "pino";
+import express, { Request, Response, NextFunction } from "express";
 import { config } from "dotenv";
 config();
 
@@ -12,18 +11,17 @@ import { handleImageResize } from "./utils/image-resize";
 
 const app = express();
 
-const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-});
-
-app.use((req, _, next) => {
-  logger.info(`${req.method} ${req.url}`);
+const logger = (req: Request, _: Response, next: NextFunction) => {
+  const ip = req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+  console.log(`[request] [${req.method}] [${ip}] [${req.url}] [${req.headers["user-agent"]}]`);
   next();
-});
+};
 
+app.use(logger);
+
+app.get("/", rootHandler);
 app.get("/tokens/:chainId/:tokenAddress", tokensHandler);
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
-app.get("/", rootHandler);
 
 const PORT = process.env.PORT || 3000;
 
