@@ -3,8 +3,9 @@ import { shade } from "polished";
 import { hex } from "wcag-contrast";
 import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS } from "./cache-control-helper";
 import { Request, Response } from "express";
-import { ASSETS_ROOT_MAP } from "./image-resize";
+import { ASSETS_ROOT_MAP, getCacheKey } from "./image-resize";
 import { readdirSync } from "fs";
+import { getCache, setCache } from "./cache-client";
 
 export const DEFAULT_COLOR = "#2172E5";
 
@@ -53,7 +54,32 @@ export const handlePalette = async (req: Request, res: Response) => {
       .send("NOT FOUND");
   }
 
-  const color = await getColor(category, name);
+  const Key = getCacheKey(req);
+  if (Key === null) {
+    return res
+      .status(400)
+      .set({
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      })
+      .send("BAD REQUEST");
+  }
+
+  let _contentType: string;
+  let _payload: Buffer;
+  let color: string;
+  const cacheObject = await getCache(Key);
+
+  if (cacheObject) {
+    _contentType = cacheObject.ContentType;
+    _payload = cacheObject.Body;
+    color = _payload.toString("utf-8");
+  } else {
+    color = await getColor(category, name);
+    _contentType = "text/plain;charset=UTF-8";
+    _payload = Buffer.from(color);
+    await setCache({ Key, Body: _payload, ContentType: _contentType });
+  }
 
   return res
     .status(200)

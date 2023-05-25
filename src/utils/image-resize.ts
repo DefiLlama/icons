@@ -117,10 +117,16 @@ export const handleImageResize = async (req: Request, res: Response) => {
   try {
     const Key = getCacheKey(req);
     if (Key === null) {
-      return res.status(403).send("NO");
+      return res
+        .status(400)
+        .set({
+          "Cache-Control": MAX_AGE_1_YEAR,
+          "CDN-Cache-Control": MAX_AGE_1_YEAR,
+        })
+        .send("BAD REQUEST");
     }
+
     const resizeParams = extractParams(req);
-    let assetsRoot: string | undefined;
     // take the first 2 parts of the path
     const { category, name } = req.params;
 
@@ -135,30 +141,30 @@ export const handleImageResize = async (req: Request, res: Response) => {
         .send("NOT FOUND");
     }
 
-    assetsRoot = ASSETS_ROOT_MAP[category];
-    if (!assetsRoot) {
-      return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
-    }
-
-    const image = await getImage(name, assetsRoot);
-    if (!image) {
-      return res
-        .status(404)
-        .set({
-          "Cache-Control": MAX_AGE_4_HOURS,
-          "CDN-Cache-Control": MAX_AGE_4_HOURS,
-        })
-        .send("NOT FOUND");
-    }
-
     let _contentType: string;
     let _payload: Buffer;
-
     const cacheObject = await getCache(Key);
+
     if (cacheObject) {
       _contentType = cacheObject.ContentType;
       _payload = cacheObject.Body;
     } else {
+      let assetsRoot = ASSETS_ROOT_MAP[category];
+      if (!assetsRoot) {
+        return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
+      }
+
+      const image = await getImage(name, assetsRoot);
+      if (!image) {
+        return res
+          .status(404)
+          .set({
+            "Cache-Control": MAX_AGE_4_HOURS,
+            "CDN-Cache-Control": MAX_AGE_4_HOURS,
+          })
+          .send("NOT FOUND");
+      }
+
       const { payload, contentType } = await resizeImage(resizeParams, image);
       await setCache({ Key, Body: payload, ContentType: contentType });
       _contentType = contentType;
