@@ -52,9 +52,7 @@ app.get("/", rootHandler);
 // app.get("/token-list", tokenListHandler); // TODO: fix or remove, it's not used anywhere beyond icons server
 app.get("/purge", purgeHandler);
 app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
-app.get("/icons/:category/:name", handleImageResize);
-app.get("/palette/:category/:name", handlePalette);
-app.get("/notfound", (_: Request, res: Response) => {
+app.get("/icons/notfound", (_: Request, res: Response) => {
   const buffer = fs.readFileSync("./assets/notfound.png");
   res
     .set({
@@ -64,6 +62,8 @@ app.get("/notfound", (_: Request, res: Response) => {
     .type("image/png")
     .send(buffer);
 });
+app.get("/icons/:category/:name", handleImageResize);
+app.get("/palette/:category/:name", handlePalette);
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
 
