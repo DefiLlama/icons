@@ -20,9 +20,18 @@ Sentry.init({ dsn: process.env.SENTRY_DSN });
 app.use(Sentry.Handlers.requestHandler());
 app.use(Sentry.Handlers.errorHandler());
 
-const logger = (req: Request, _: Response, next: NextFunction) => {
+const logger = (req: Request, res: Response, next: NextFunction) => {
   const ip = req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-  console.log(`[request] [${req.method}] [${ip}] [${req.url}] [${req.headers["user-agent"]}]`);
+  const method = req.method;
+  const url = req.url;
+  const start = Date.now();
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    console.log(`[${method}][${status}][${ip}][${duration}ms] ${url}`);
+  });
+
   next();
 };
 app.use(logger);
