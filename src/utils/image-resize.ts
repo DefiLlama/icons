@@ -10,6 +10,8 @@ import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES, MAX_AGE_4_HOURS } from "./cache-con
 import { Request, Response } from "express";
 import { resToImage } from "./response";
 
+const blacklistedDomains = ["shibawallet.pro"];
+
 interface ResizeParams {
   width: number | undefined;
   height: number | undefined;
@@ -259,6 +261,9 @@ export const getImage = async (src: string, assetsRoot?: string) => {
       await image.metadata();
       return image;
     } else if (src.startsWith("http")) {
+      if (blacklistedDomains.some((domain) => src.toLowerCase().includes(domain.toLowerCase()))) {
+        return null;
+      }
       const res = await fetch(src.replace("/thumb/", "/large/"));
       return await resToImage(res);
     } else {
