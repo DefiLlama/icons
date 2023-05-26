@@ -1,3 +1,4 @@
+import fs from "fs";
 import express, { Request, Response, NextFunction } from "express";
 import * as Sentry from "@sentry/node";
 import { config } from "dotenv";
@@ -53,6 +54,16 @@ app.get("/purge", purgeHandler);
 app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
 app.get("/icons/:category/:name", handleImageResize);
 app.get("/palette/:category/:name", handlePalette);
+app.get("/notfound", (_: Request, res: Response) => {
+  const buffer = fs.readFileSync("./assets/notfound.png");
+  res
+    .set({
+      "Cache-Control": MAX_AGE_1_YEAR,
+      "CDN-Cache-Control": MAX_AGE_1_YEAR,
+    })
+    .type("image/png")
+    .send(buffer);
+});
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
 
