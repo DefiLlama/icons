@@ -56,54 +56,22 @@ export const trustWalletChainsMap: { [chainId: number]: string } = {
   1284: "moonbeam",
 } as const;
 
-const blacklistedTokens = [
-  "0x2e3487f967df2ebc2f236e16f8fcaeac7091324d",
-  "0x971aabcf9e922e1003969a7662a43765d4527b82",
-  "0x1605bbdab3b38d10fa23a7ed0d0e8f4fea5bff59",
-  "0xd85e038593d7a098614721eae955ec2022b9b91b",
-  "0x1b3a3eb66749421a8d36e9ef39186b77fb7e9ef0",
-  "0xb46584e0efde3092e04010a13f2eae62adb3b9f0",
-  "0x4e86b21ad7eef415c08fde58066272897495ab41",
-  "0x3b987a36a7f44dc4657daf9ce032ba315473067e",
-  "0x9b69b837aa66d1ca3365df0efe95908b84140f6a",
-  "0x368c5290b13caa10284db58b4ad4f3e9ee8bf4c9",
-  "0xc4cb613947890ea300fedc509ac19f8efa0cdd14",
-  "0x857d4d47a707cb4e409e14ac63b2e79114acd102",
-  "0xf92364c2369a2633ffcd7db1b18d1fafff6bcbab",
-  "0xfc0b60e0df5dc9d4b72d957ca2d251cee308019a",
-  "0x2c7f442aab99d5e18cfae2291c507c0b5f3c1eb5",
-  "0x11f9e9b3c539368bea16dde2108b748a9672d714",
-  "0xb806fa32ebdc04e5dbdd2ad83e75c8f7d8e8ef8b",
-  "0x3007083eaa95497cd6b2b809fb97b6a30bdf53d3",
-  "0xfddacc9cec6a1a41630e2ad5adc863a070f0b614",
-  "0x6622bc22e34153456dd1109414fa275d80678680",
-  "0xc085c97ec81d44ed6e0f999f871e51629dd6c261",
-  "0x42d403ab9b0603442ac991c0cfe124105dde0811",
-  "0xccb97ae0c1bc4ce196b6460395af7df5ee1212bc",
-  "0x94f27f7c941ade2cae367a526d49a77bf7b8e134",
-  "0x6643ed3bd5ffe7a3f9d3dd36f71a843abfa9df87",
-  "0x3801c3b3b5c98f88a9c9005966aa96aa440b9afc",
-  "0xb2970709add8ce1e308c3a4bd1c2c49ea44bf648",
-  "0x95c91eef65f50570cfc3f269961a00108cf7bf59",
-  "0xd41aeaad6385095856049a83576cac4f22003b3e",
-  "0xf3bb9f16677f2b86efd1dfca1c141a99783fde58",
-  "0x86a1012d437bbff84fbdf62569d12d4fd3396f8c",
-  "0xf0b5ceefc89684889e5f7e0a7775bd100fcd3709",
-  "0x2338a5d62e9a766289934e8d2e83a443e8065b83",
-  "0x876ec6be52486eeec06bc06434f3e629d695c6ba",
-  "0x16eccfdbb4ee1a85a33f3a9b21175cd7ae753db4",
-  "0x921f99719eb6c01b4b8f0ba7973a7c24891e740a",
-  "0x1e917e764bc34d3bc313fe8159a6bd9d9ffd450d",
-  "0x99d7faaf17f35d04d324c3bf05625a2f68229f66",
-  "0xb36faf341c7817d681f23bcedbd3d85467e5ad9f",
-  "0xfb033fa09706fa92ace768736ec94ad68688888b",
-  "0x7dff46370e9ea5f0bad3c4e29711ad50062ea7a4",
-  "0x1bfc26ce035c368503fae319cc2596716428ca44",
-  "0x4406509b532b111bd39b5b579561001cbf0d7acf",
-];
+const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((token) => token.toLowerCase());
 
 // express app handler for route /tokens/:chainId/:tokenAddress
 export default async (req: Request, res: Response) => {
+  const { chainId, tokenAddress } = req.params;
+
+  if (blacklistedTokens.includes(tokenAddress.toLowerCase())) {
+    return res
+      .status(404)
+      .set({
+        "Cache-Control": MAX_AGE_4_HOURS,
+        "CDN-Cache-Control": MAX_AGE_4_HOURS,
+      })
+      .send("NOT FOUND");
+  }
+
   const cacheKey = getCacheKey(req);
   if (!cacheKey) {
     return res
@@ -115,7 +83,6 @@ export default async (req: Request, res: Response) => {
       .send("BAD REQUEST");
   }
 
-  const { chainId, tokenAddress } = req.params;
   const resizeParams = extractParams(req);
   const cached = await getCache(cacheKey);
   if (cached) {
