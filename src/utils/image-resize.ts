@@ -107,6 +107,22 @@ export const getCacheKey = (req: Request, ignoreQueryParams = false) => {
   }
 };
 
+export const getCacheKeyFromUrl = (url: string, ignoreQueryParams = false) => {
+  try {
+    const parsedUrl = new URL(url);
+    let fullPath: string;
+    if (!ignoreQueryParams) {
+      fullPath = (parsedUrl.pathname + parsedUrl.search).replace(/^\//, "").replace(/\/$/, "");
+    } else {
+      fullPath = parsedUrl.pathname.replace(/^\//, "").replace(/\/$/, "");
+    }
+    return sluggify(fullPath);
+  } catch (err) {
+    console.error(`[error] [getCacheKeyFromUrl] ${url}`, err);
+    return null;
+  }
+};
+
 export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } = {
   "agg_icons": "assets/agg_icons",
   "chains": "assets/chains",

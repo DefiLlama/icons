@@ -5,8 +5,10 @@ import Redis from "ioredis";
 import { saveFileToS3, getFileFromS3, deleteFileFromS3 } from "./s3-client";
 
 const REDIS_URL = process.env.REDIS_URL as string;
-
 const redis = new Redis(REDIS_URL);
+
+const CF_PURGE_CACHE_AUTH = process.env.CF_PURGE_CACHE_AUTH as string;
+const CF_ZONE = process.env.CF_ZONE as string;
 
 export const sluggify = (input: string) => {
   const slug = decodeURIComponent(input)
@@ -76,9 +78,30 @@ export const deleteCache = async (Key: string) => {
   }
 };
 
-export const purgeCloudflareCache = async (Key: string) => {
-  // TODO: purge Cloudflare cache for both API and public bucket
-  return true;
+export const purgeCloudflareCache = async (urls: string[]) => {
+  try {
+    const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${CF_ZONE}/purge_cache`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${CF_PURGE_CACHE_AUTH}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        files: urls,
+      }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      return true;
+    }
+    console.error("[error] [cache] [failed to purge]", urls);
+    console.error(json);
+    return false;
+  } catch (error) {
+    console.error("[error] [cache] [failed to purge]", urls);
+    console.error(error);
+    return false;
+  }
 };
 
 export const saveFileToS3AndCache = async (
@@ -97,12 +120,8 @@ export const saveFileToS3AndCache = async (
 
 export const deleteFileFromS3AndCache = async (Key: string) => {
   try {
-    const [resS3, resRedis, resCloudflare] = await Promise.all([
-      deleteCache(Key),
-      deleteFileFromS3(Key),
-      purgeCloudflareCache(Key),
-    ]);
-    return resS3 && resRedis && resCloudflare;
+    const [resS3, resRedis] = await Promise.all([deleteCache(Key), deleteFileFromS3(Key)]);
+    return resS3 && resRedis;
   } catch (error) {
     console.error("[error] [cache] [failed to delete]", Key);
     console.error(error);

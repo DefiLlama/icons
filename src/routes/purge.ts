@@ -1,22 +1,34 @@
-import { purgeCloudflareCache } from "../utils/cache-client";
+import { deleteFileFromS3AndCache, purgeCloudflareCache } from "../utils/cache-client";
 import { Request, Response } from "express";
+import { getCacheKeyFromUrl } from "../utils/image-resize";
 
 // POST endpoint to purge a given URL from both CDN and redis cache
 export default async (req: Request, res: Response) => {
-  const { url } = req.body as { url: string };
+  const { urls } = req.body as { urls: string[] };
   const { authorization } = req.headers;
   if (authorization !== "Llama " + process.env.ADMIN_AUTH) {
     return res.status(403).send("UNAUTHORIZED");
   }
-  if (!url) {
+  if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return res.status(400).send("MISSING URL");
   }
 
+  const Keys = urls.map((url) => getCacheKeyFromUrl(url)).filter((key) => key !== null) as string[];
+
   try {
-    await purgeCloudflareCache(url);
-    return res.status(200).send("DONE");
+    const [resNonCf, resCf] = await Promise.all([
+      Promise.all(Keys.map((Key) => deleteFileFromS3AndCache(Key))),
+      purgeCloudflareCache(urls),
+    ]);
+    const nonCfFails = resNonCf.some((res) => res !== true);
+    const cfFails = resCf !== true;
+    if (nonCfFails || cfFails) {
+      return res.status(500).send("ERROR");
+    } else {
+      return res.status(200).send("DONE");
+    }
   } catch (e) {
-    console.error(`[error] [purge] ${url}`, e);
+    console.error(`[error] [purge] ${urls}`, e);
     return res.status(500).send("ERROR");
   }
 };
