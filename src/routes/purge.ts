@@ -11,6 +11,7 @@ export default async (req: Request, res: Response) => {
   }
 
   const body = req.body as { urls: string[] } | undefined;
+  console.log(`[purge] ${JSON.stringify(body)}`);
   const urls = body?.urls;
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return res.status(400).send("MISSING URL");
