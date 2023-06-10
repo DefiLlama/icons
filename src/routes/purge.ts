@@ -4,12 +4,14 @@ import { getCacheKeyFromUrl } from "../utils/image-resize";
 
 // POST endpoint to purge a given URL from both CDN and redis cache
 export default async (req: Request, res: Response) => {
-  const { urls } = req.body as { urls: string[] };
-  const { authorization } = req.headers;
+  const authorization = req?.headers?.authorization;
   if (authorization !== "Llama " + process.env.ADMIN_AUTH) {
     console.error(`[error] [purge] UNAUTHORIZED ${authorization}`);
     return res.status(403).send("UNAUTHORIZED");
   }
+
+  const body = req.body as { urls: string[] } | undefined;
+  const urls = body?.urls;
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return res.status(400).send("MISSING URL");
   }
