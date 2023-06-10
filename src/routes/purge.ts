@@ -7,6 +7,7 @@ export default async (req: Request, res: Response) => {
   const { urls } = req.body as { urls: string[] };
   const { authorization } = req.headers;
   if (authorization !== "Llama " + process.env.ADMIN_AUTH) {
+    console.error(`[error] [purge] UNAUTHORIZED ${authorization}`);
     return res.status(403).send("UNAUTHORIZED");
   }
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
