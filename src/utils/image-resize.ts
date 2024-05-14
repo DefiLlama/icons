@@ -7,7 +7,7 @@ import type { FitEnum } from "sharp";
 import sharp from "sharp";
 import { getCache, setCache, sluggify } from "./cache-client";
 import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES, MAX_AGE_4_HOURS } from "./cache-control-helper";
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { resToImage } from "./response";
 
 const blacklistedDomains = ["shibawallet.pro"];
