@@ -28,6 +28,7 @@ const chainIconUrls: { [chainId: number]: string } = {
   250: "fantom",
   100: "gnosis",
   137: "polygon",
+  534352: "scroll",
 };
 
 export const trustWalletChainsMap: { [chainId: number]: string } = {
