@@ -19,7 +19,7 @@ const oneInchChains = {
   avax: 43114,
   gnosis: 100,
   fantom: 250,
-  klaytn: 8217,
+  kaia: 8217,
 };
 
 export const geckoChainsMap: { [chain: string]: number } = {
