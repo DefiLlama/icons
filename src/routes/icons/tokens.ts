@@ -29,6 +29,8 @@ const chainIconUrls: { [chainId: number]: string } = {
   100: "gnosis",
   137: "polygon",
   534352: "scroll",
+  8453: "ethereum",
+  81457: "ethereum",
 };
 
 export const trustWalletChainsMap: { [chainId: number]: string } = {
@@ -55,6 +57,8 @@ export const trustWalletChainsMap: { [chainId: number]: string } = {
   66: "okexchain",
   // 122: "fuse",
   1284: "moonbeam",
+  8453: "base",
+  81457: "blast",
 } as const;
 
 const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((token) => token.toLowerCase());
