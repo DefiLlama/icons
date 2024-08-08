@@ -51,7 +51,7 @@ export const geckoChainsMap: { [chain: string]: number } = {
   blast: 81457,
 };
 
-const CACHE_KEY = "token-list";
+const CACHE_KEY = "token-list-v2";
 
 export const compileTokenList = async (): Promise<TokenList> => {
   const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
