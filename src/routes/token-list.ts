@@ -19,7 +19,8 @@ const oneInchChains = {
   avax: 43114,
   gnosis: 100,
   fantom: 250,
-  kaia: 8217,
+  klaytn: 8217,
+  base: 8453
 };
 
 export const geckoChainsMap: { [chain: string]: number } = {
@@ -46,9 +47,11 @@ export const geckoChainsMap: { [chain: string]: number } = {
   "okex-chain": 66,
   fuse: 122,
   moonbeam: 1284,
+  base: 8453,
+  blast: 81457,
 };
 
-const CACHE_KEY = "token-list";
+const CACHE_KEY = "token-list-v2";
 
 export const compileTokenList = async (): Promise<TokenList> => {
   const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
@@ -60,7 +63,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
 
   const oneInch = await Promise.all(
     Object.values(oneInchChains).map(async (chainId) =>
-      fetch(`https://tokens.1inch.io/v1.1/${chainId}`).then((r) => r.json()),
+      fetch(`https://tokens.1inch.io/v1.2/${chainId}`).then((r) => r.json()),
     ),
   );
 
