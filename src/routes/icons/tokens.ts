@@ -25,6 +25,7 @@ const chainIconUrls: { [chainId: number]: string } = {
   1313161554: "ethereum",
   43114: "avax",
   8217: "klaytn",
+  1001: "klaytn",
   250: "fantom",
   100: "gnosis",
   137: "polygon",
