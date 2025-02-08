@@ -1,18 +1,17 @@
-name: Static Icons
+name: Publish Static Icons
 
 on:
   push:
-    branches: [ master ]
+    branches: [ v2 ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: cp ./data/icons/* ./defi/icons
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./defi/icons
+        publish_dir: ./assets/protocols
         cname: icons.llama.fi
