@@ -134,6 +134,7 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   // "nfts": "assets/nfts",
   "pegged": "assets/pegged",
   "protocols": "assets/protocols",
+  "stocks": "assets/stocks",
 };
 
 export const handleImageResize = async (req: Request, res: Response) => {
