@@ -9,6 +9,30 @@ import { getCache, setCache } from "./cache-client";
 
 export const DEFAULT_COLOR = "#2172E5";
 
+export async function getColourFromPath(fullPath: string) {
+  let color = DEFAULT_COLOR;
+  try {
+
+    await Vibrant.from(fullPath).getPalette((_err, palette) => {
+      if (palette?.Vibrant) {
+        let detectedHex = palette.Vibrant.hex;
+        let AAscore = hex(detectedHex, "#FFF");
+
+        while (AAscore < 3) {
+          detectedHex = shade(0.005, detectedHex);
+          AAscore = hex(detectedHex, "#FFF");
+        }
+
+        color = detectedHex;
+      }
+    })
+  } catch (error) {
+    console.error(`[error] [get color] ${fullPath}`, (error as any)?.message);
+    return DEFAULT_COLOR;
+  }
+  return color;
+}
+
 export const getColor = async (category: string, name: string) => {
   let color = DEFAULT_COLOR;
   const directory = `assets/${category}`;
@@ -21,19 +45,7 @@ export const getColor = async (category: string, name: string) => {
 
   try {
     if (fullPath.match(/\.(jpg|jpeg|png)$/)) {
-      await Vibrant.from(fullPath).getPalette((_err, palette) => {
-        if (palette?.Vibrant) {
-          let detectedHex = palette.Vibrant.hex;
-          let AAscore = hex(detectedHex, "#FFF");
-
-          while (AAscore < 3) {
-            detectedHex = shade(0.005, detectedHex);
-            AAscore = hex(detectedHex, "#FFF");
-          }
-
-          color = detectedHex;
-        }
-      });
+      return getColourFromPath(fullPath);
     }
   } catch (error) {
     console.error(`[error] [get color] ${fullPath}`, error);
@@ -87,13 +99,14 @@ export const handlePalette = async (req: Request, res: Response) => {
       "Content-Type": "text/plain;charset=UTF-8",
       ...(color !== DEFAULT_COLOR
         ? {
-            "Cache-Control": MAX_AGE_1_YEAR,
-            "CDN-Cache-Control": MAX_AGE_1_YEAR,
-          }
+          "Cache-Control": MAX_AGE_1_YEAR,
+          "CDN-Cache-Control": MAX_AGE_1_YEAR,
+        }
         : {
-            "Cache-Control": MAX_AGE_4_HOURS,
-            "CDN-Cache-Control": MAX_AGE_4_HOURS,
-          }),
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        }),
     })
     .send(color);
 };
+

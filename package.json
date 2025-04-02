@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
+    "store-palette-info": "npx ts-node src/utils/storeAllPalettes.ts",
     "start": "node dist/app.js"
   },
   "keywords": [],
@@ -17,6 +18,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.335.0",
+    "@defillama/sdk": "^5.0.125",
     "@sentry/node": "^7.53.1",
     "dotenv": "^16.0.3",
     "ethers": "^6.4.0",

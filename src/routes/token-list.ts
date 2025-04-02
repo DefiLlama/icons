@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { setCache, getCache, saveFileToS3AndCache } from "../utils/cache-client";
+import { setCache, getCache } from "../utils/cache-client";
 import { forEveryIntervalOf, ttlForEveryIntervalOf } from "../utils/cache-control-helper";
 
 export type TokenList = {
@@ -21,6 +21,8 @@ const oneInchChains = {
   fantom: 250,
   klaytn: 8217,
   base: 8453,
+  linea: 59144,
+  zksync: 324,
 };
 
 export const geckoChainsMap: { [chain: string]: number } = {
@@ -49,6 +51,9 @@ export const geckoChainsMap: { [chain: string]: number } = {
   moonbeam: 1284,
   base: 8453,
   blast: 81457,
+  sonic: 146,
+  berachain: 80094,
+  zksync: 324,
 };
 
 const CACHE_KEY = "token-list-v2";
