@@ -32,7 +32,8 @@ const chainIconUrls: { [chainId: number]: string } = {
   8453: "ethereum",
   81457: "ethereum",
   146: "sonic",
-  80094: "berachain"
+  80094: "berachain",
+  98866: "plume-mainnet",
 };
 
 export const trustWalletChainsMap: { [chainId: number]: string } = {
@@ -62,6 +63,7 @@ export const trustWalletChainsMap: { [chainId: number]: string } = {
   8453: "base",
   81457: "blast",
   146: "sonic",
+  98866: "plume-mainnet",
 } as const;
 
 const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((token) => token.toLowerCase());
