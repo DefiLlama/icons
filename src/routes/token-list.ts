@@ -1,5 +1,5 @@
 import { Response } from "express";
-import { setCache, getCache, saveFileToS3AndCache } from "../utils/cache-client";
+import { setCache, getCache } from "../utils/cache-client";
 import { forEveryIntervalOf, ttlForEveryIntervalOf } from "../utils/cache-control-helper";
 
 export type TokenList = {
@@ -20,6 +20,9 @@ const oneInchChains = {
   gnosis: 100,
   fantom: 250,
   klaytn: 8217,
+  base: 8453,
+  linea: 59144,
+  zksync: 324,
 };
 
 export const geckoChainsMap: { [chain: string]: number } = {
@@ -46,9 +49,16 @@ export const geckoChainsMap: { [chain: string]: number } = {
   "okex-chain": 66,
   fuse: 122,
   moonbeam: 1284,
+  base: 8453,
+  blast: 81457,
+  sonic: 146,
+  berachain: 80094,
+  zksync: 324,
+  "plume-mainnet": 98866,
+  unichain: 130,
 };
 
-const CACHE_KEY = "token-list";
+const CACHE_KEY = "token-list-v2";
 
 export const compileTokenList = async (): Promise<TokenList> => {
   const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
@@ -60,7 +70,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
 
   const oneInch = await Promise.all(
     Object.values(oneInchChains).map(async (chainId) =>
-      fetch(`https://tokens.1inch.io/v1.1/${chainId}`).then((r) => r.json()),
+      fetch(`https://tokens.1inch.io/v1.2/${chainId}`).then((r) => r.json()),
     ),
   );
 
