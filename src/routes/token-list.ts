@@ -55,6 +55,7 @@ export const geckoChainsMap: { [chain: string]: number } = {
   berachain: 80094,
   zksync: 324,
   "plume-mainnet": 98866,
+  unichain: 130,
 };
 
 const CACHE_KEY = "token-list-v2";
