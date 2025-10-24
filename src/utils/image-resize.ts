@@ -7,7 +7,7 @@ import type { FitEnum } from "sharp";
 import sharp from "sharp";
 import { getCache, setCache, sluggify } from "./cache-client";
 import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES, MAX_AGE_4_HOURS } from "./cache-control-helper";
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { resToImage } from "./response";
 
 const blacklistedDomains = ["shibawallet.pro"];
@@ -134,6 +134,7 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   // "nfts": "assets/nfts",
   "pegged": "assets/pegged",
   "protocols": "assets/protocols",
+  "stocks": "assets/stocks",
 };
 
 export const handleImageResize = async (req: Request, res: Response) => {
