@@ -16,6 +16,7 @@ interface ResizeParams {
   width: number | undefined;
   height: number | undefined;
   fit: keyof FitEnum;
+  format: "webp" | "png";
 }
 
 export function extractParams(req: Request): ResizeParams {
@@ -33,11 +34,19 @@ export function extractParams(req: Request): ResizeParams {
       fit = fitParam as keyof FitEnum;
     }
   }
-  return { width, height, fit };
+  const formatEnum = ["webp", "png"];
+  let format: "webp" | "png" = searchParams.has("format")
+    ? ((searchParams.get("format") ?? "webp") as "webp" | "png")
+    : ("webp" as "webp" | "png");
+  if (!formatEnum.includes(format)) {
+    format = "webp";
+  }
+
+  return { width, height, fit, format };
 }
 
 export const resizeImageBuffer = async (params: ResizeParams, buffer: Buffer) => {
-  const { width, height, fit } = params;
+  const { width, height, fit, format } = params;
   // determine if the image is a gif
   const isGIF = buffer.toString("ascii", 0, 3) === "GIF";
   const sharpTransforms = isGIF
@@ -48,6 +57,14 @@ export const resizeImageBuffer = async (params: ResizeParams, buffer: Buffer) =>
           fit,
         })
         .gif({ dither: 0 })
+    : format === "png"
+    ? sharp(buffer)
+        .resize({
+          width,
+          height,
+          fit,
+        })
+        .png({ quality: 100 })
     : sharp(buffer)
         .resize({
           width,
@@ -58,13 +75,13 @@ export const resizeImageBuffer = async (params: ResizeParams, buffer: Buffer) =>
 
   const payload = await sharpTransforms.toBuffer();
   return {
-    contentType: isGIF ? "image/gif" : "image/webp",
+    contentType: isGIF ? "image/gif" : format === "png" ? "image/png" : "image/webp",
     payload,
   };
 };
 
 export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
-  const { width, height, fit } = params;
+  const { width, height, fit, format } = params;
   // determine if the image is a gif
   const isGIF = (await image.metadata()).format === "gif";
   const sharpTransforms = isGIF
@@ -75,6 +92,14 @@ export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
           fit,
         })
         .gif({ dither: 0 })
+    : format === "png"
+    ? image
+        .resize({
+          width,
+          height,
+          fit,
+        })
+        .png({ quality: 100 })
     : image
         .resize({
           width,
@@ -85,7 +110,7 @@ export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
 
   const payload = await sharpTransforms.toBuffer();
   return {
-    contentType: isGIF ? "image/gif" : "image/webp",
+    contentType: isGIF ? "image/gif" : format === "png" ? "image/png" : "image/webp",
     payload,
   };
 };
