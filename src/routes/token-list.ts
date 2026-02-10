@@ -11,18 +11,18 @@ export type TokenList = {
 };
 
 const oneInchChains = {
-  ethereum: 1,
-  bsc: 56,
-  polygon: 137,
-  optimism: 10,
-  arbitrum: 42161,
-  avax: 43114,
-  gnosis: 100,
-  fantom: 250,
-  klaytn: 8217,
-  base: 8453,
-  linea: 59144,
-  zksync: 324,
+	ethereum: 1,
+	bsc: 56,
+	polygon: 137,
+	optimism: 10,
+	arbitrum: 42161,
+	gnosis: 100,
+	avax: 43114,
+	fantom: 250,
+	klaytn: 8217,
+	aurora: 1313161554,
+	zksync: 324,
+	base: 8453
 };
 
 export const geckoChainsMap: { [chain: string]: number } = {
@@ -56,6 +56,13 @@ export const geckoChainsMap: { [chain: string]: number } = {
   zksync: 324,
   "plume-mainnet": 98866,
   unichain: 130,
+  scroll: 534352,
+	hyperliquid: 999,
+	monad: 143,
+	plasma: 9745,
+	ink: 57073,
+	'world-chain': 480,
+	megaeth: 4326,
 };
 
 const CACHE_KEY = "token-list-v2";
