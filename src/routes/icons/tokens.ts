@@ -40,6 +40,7 @@ const chainIconUrls: { [chainId: number]: string } = {
   57073: 'ink',
   480: 'worldchain',
   9745: 'plasma',
+  4217: 'tempo',
 };
 
 export const trustWalletChainsMap: { [chainId: number]: string } = {
@@ -76,6 +77,7 @@ export const trustWalletChainsMap: { [chainId: number]: string } = {
   // 57073: 'ink',
   // 480: 'worldchain',
   9745: 'plasma',
+  4217: 'tempo',
 } as const;
 
 const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((token) => token.toLowerCase());
