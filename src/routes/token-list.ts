@@ -181,6 +181,18 @@ export const compileTokenList = async (): Promise<TokenList> => {
     });
   }
 
+  // normalize coingecko CDN domain — coin-images.coingecko.com is undocumented
+  // and serves stale images, assets.coingecko.com is the official domain per docs
+  // https://docs.coingecko.com/reference/coins-id
+  for (const chain in logoDirectory) {
+    for (const token in logoDirectory[chain]) {
+      logoDirectory[chain][token] = logoDirectory[chain][token].replace(
+        'coin-images.coingecko.com',
+        'assets.coingecko.com'
+      );
+    }
+  }
+
   return { tokens: logoDirectory };
 };
 
