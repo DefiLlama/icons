@@ -165,8 +165,10 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
 
 export const handleImageResize = async (req: Request, res: Response) => {
   try {
-    const Key = getCacheKey(req);
-    if (Key === null) {
+    // Equities tickers are case-sensitive in the asset filenames, so keep the raw request URL as the cache key.
+    const { category, name } = req.params;
+    const Key = category === "equities" ? req.originalUrl.replace(/^\//, "").replace(/\/$/, "") : getCacheKey(req);
+    if (!Key) {
       return res
         .status(400)
         .set({
@@ -178,7 +180,6 @@ export const handleImageResize = async (req: Request, res: Response) => {
 
     const resizeParams = extractParams(req);
     // take the first 2 parts of the path
-    const { category, name } = req.params;
 
     if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
       console.error(`[error] [handleImageResize] ${req.originalUrl}`);
