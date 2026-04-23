@@ -9,7 +9,12 @@ import {
 } from "../../utils/image-resize";
 import { getCache, getFileFromS3OrCacheBuffer, saveFileToS3AndCache, setCache } from "../../utils/cache-client";
 import { Request, Response } from "express";
-import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS, ttlForEveryIntervalOf } from "../../utils/cache-control-helper";
+import {
+  MAX_AGE_1_YEAR,
+  MAX_AGE_10_MINUTES,
+  MAX_AGE_4_HOURS,
+  ttlForEveryIntervalOf,
+} from "../../utils/cache-control-helper";
 import { TOKEN_LIST_CACHE_KEY, TokenList, compileTokenList } from "../token-list";
 
 const TOKEN_ASSETS_ROOT = "assets/tokens";
@@ -96,18 +101,25 @@ export const trustWalletChainsMap: { [chainId: number]: string } = {
 const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((token) => token.toLowerCase());
 
 const getTokenList = async () => {
-  let tokenList: TokenList;
   const tokenListCache = await getCache(TOKEN_LIST_CACHE_KEY);
   if (tokenListCache) {
-    tokenList = JSON.parse(tokenListCache.Body.toString());
-  } else {
-    tokenList = await compileTokenList();
-    const tokenListPayload = JSON.stringify(tokenList);
-    const tokenListBuffer = Buffer.from(tokenListPayload);
+    const tokenList: TokenList = JSON.parse(tokenListCache.Body.toString());
+    if (tokenList.gecko && Object.keys(tokenList.gecko).length > 0) {
+      return tokenList;
+    }
+    console.error(`[warn] [tokens] ignoring ${TOKEN_LIST_CACHE_KEY} without gecko logos`);
+  }
+
+  const tokenList = await compileTokenList();
+  const tokenListPayload = JSON.stringify(tokenList);
+  const tokenListBuffer = Buffer.from(tokenListPayload);
+  if (tokenList.gecko && Object.keys(tokenList.gecko).length > 0) {
     await setCache(
       { Key: TOKEN_LIST_CACHE_KEY, Body: tokenListBuffer, ContentType: "application/json" },
       ttlForEveryIntervalOf(3600),
     );
+  } else {
+    console.error(`[warn] [tokens] not caching ${TOKEN_LIST_CACHE_KEY} without gecko logos`);
   }
   return tokenList;
 };
@@ -144,12 +156,12 @@ const getLocalChainTokenIcon = async (chainId: string, tokenAddress: string) => 
   );
 };
 
-const sendNotFound = (res: Response) =>
+const sendNotFound = (res: Response, cacheControl = MAX_AGE_4_HOURS) =>
   res
     .status(404)
     .set({
-      "Cache-Control": MAX_AGE_4_HOURS,
-      "CDN-Cache-Control": MAX_AGE_4_HOURS,
+      "Cache-Control": cacheControl,
+      "CDN-Cache-Control": cacheControl,
     })
     .send("NOT FOUND");
 
@@ -212,7 +224,7 @@ const serveGeckoTokenIcon = async (req: Request, res: Response, rawGeckoId: stri
   const imgUrl = tokenList.gecko?.[geckoId];
   const image = imgUrl ? await getImage(imgUrl) : null;
   if (!imgUrl || !image) {
-    return sendNotFound(res);
+    return sendNotFound(res, MAX_AGE_10_MINUTES);
   }
 
   const rawBuffer = await image.toBuffer();

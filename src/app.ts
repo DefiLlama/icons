@@ -52,6 +52,8 @@ app.use(
 app.get("/", rootHandler);
 // app.get("/token-list", tokenListHandler); // TODO: fix or remove, it's not used anywhere beyond icons server
 app.post("/purge", purgeHandler);
+app.get("/icons/token/gecko/:geckoId", geckoTokensHandler);
+app.get("/icons/token/:chainId/:tokenAddress", tokensHandler);
 app.get("/icons/tokens/gecko/:geckoId", geckoTokensHandler);
 app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
 app.get("/icons/notfound", (_: Request, res: Response) => {

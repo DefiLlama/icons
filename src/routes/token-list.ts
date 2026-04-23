@@ -68,7 +68,7 @@ export const geckoChainsMap: { [chain: string]: number } = {
 	megaeth: 4326,
 };
 
-export const TOKEN_LIST_CACHE_KEY = "token-list-v3";
+export const TOKEN_LIST_CACHE_KEY = "token-list-v4";
 
 const normalizeLogoUrl = (url: string) => url.replace("coin-images.coingecko.com", "assets.coingecko.com");
 
