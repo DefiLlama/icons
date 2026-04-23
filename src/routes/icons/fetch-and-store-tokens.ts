@@ -2,9 +2,7 @@ import { Request, Response } from "express";
 import { getCache, saveFileToS3AndCache } from "../../utils/cache-client";
 import { resToBuffer } from "../../utils/response";
 import { doesFileExistInS3 } from "../../utils/s3-client";
-import { compileTokenList } from "../token-list";
-
-const CACHE_KEY = "token-list";
+import { TOKEN_LIST_CACHE_KEY, TokenList, compileTokenList } from "../token-list";
 
 export default async (req: Request, res: Response) => {
   const { authorization } = req.headers;
@@ -13,8 +11,8 @@ export default async (req: Request, res: Response) => {
   }
 
   try {
-    let tokenList: { tokens: { [chain: number]: { [token: string]: string } } };
-    const cached = await getCache(CACHE_KEY);
+    let tokenList: TokenList;
+    const cached = await getCache(TOKEN_LIST_CACHE_KEY);
     if (cached) {
       const { Body } = cached;
       tokenList = JSON.parse(Body.toString("utf-8"));
@@ -27,25 +25,7 @@ export default async (req: Request, res: Response) => {
     for (const chain in tokenList.tokens) {
       for (const token in tokenList.tokens[chain]) {
         const imgUrl = tokenList.tokens[chain][token];
-        if (imgUrl.startsWith("https://assets.coingecko.com")) {
-          const exists = await doesFileExistInS3(`token/${chain}/${token}`);
-
-          if (!exists) {
-            const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
-
-            if (isValidImage(tokenImage)) {
-              const resBuffer = await resToBuffer(tokenImage);
-
-              await saveFileToS3AndCache({
-                Key: `token/${chain}/${token}`,
-                Body: resBuffer,
-                ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
-              });
-
-              console.log(`saved ${imgUrl}`);
-            }
-          }
-        }
+        await fetchAndSaveTokenImage(`token/${chain}/${token}`, imgUrl);
 
         processed++;
         if (processed % 25 === 0) {
@@ -54,9 +34,39 @@ export default async (req: Request, res: Response) => {
       }
     }
 
+    for (const geckoId in tokenList.gecko ?? {}) {
+      await fetchAndSaveTokenImage(`token/gecko/${geckoId}`, tokenList.gecko[geckoId]);
+
+      processed++;
+      if (processed % 25 === 0) {
+        console.log(`processed ${processed}`);
+      }
+    }
+
     return "success";
   } catch (error: unknown) {
     return JSON.stringify(error);
+  }
+};
+
+const fetchAndSaveTokenImage = async (key: string, imgUrl: string) => {
+  if (!imgUrl.startsWith("https://assets.coingecko.com")) return;
+
+  const exists = await doesFileExistInS3(key);
+  if (exists) return;
+
+  const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
+
+  if (isValidImage(tokenImage)) {
+    const resBuffer = await resToBuffer(tokenImage);
+
+    await saveFileToS3AndCache({
+      Key: key,
+      Body: resBuffer,
+      ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
+    });
+
+    console.log(`saved ${imgUrl}`);
   }
 };
 

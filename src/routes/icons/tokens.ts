@@ -1,8 +1,21 @@
-import { extractParams, getCacheKey, getImage, resizeImage, resizeImageBuffer } from "../../utils/image-resize";
+import { existsSync } from "fs";
+import {
+  extractParams,
+  getCacheKey,
+  getImage,
+  getSrcPath,
+  resizeImage,
+  resizeImageBuffer,
+} from "../../utils/image-resize";
 import { getCache, getFileFromS3OrCacheBuffer, saveFileToS3AndCache, setCache } from "../../utils/cache-client";
 import { Request, Response } from "express";
 import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS, ttlForEveryIntervalOf } from "../../utils/cache-control-helper";
-import { TokenList, compileTokenList } from "../token-list";
+import { TOKEN_LIST_CACHE_KEY, TokenList, compileTokenList } from "../token-list";
+
+const TOKEN_ASSETS_ROOT = "assets/tokens";
+const GECKO_TOKEN_ASSETS_SUBDIR = "gecko";
+const GECKO_TOKEN_S3_PREFIX = "token/gecko";
+const geckoIdPattern = /^[a-z0-9._-]+$/;
 
 const chainIconUrls: { [chainId: number]: string } = {
   1: "ethereum",
@@ -82,43 +95,180 @@ export const trustWalletChainsMap: { [chainId: number]: string } = {
 
 const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((token) => token.toLowerCase());
 
-// express app handler for route /tokens/:chainId/:tokenAddress
-export default async (req: Request, res: Response) => {
-  const { chainId, tokenAddress } = req.params;
+const getTokenList = async () => {
+  let tokenList: TokenList;
+  const tokenListCache = await getCache(TOKEN_LIST_CACHE_KEY);
+  if (tokenListCache) {
+    tokenList = JSON.parse(tokenListCache.Body.toString());
+  } else {
+    tokenList = await compileTokenList();
+    const tokenListPayload = JSON.stringify(tokenList);
+    const tokenListBuffer = Buffer.from(tokenListPayload);
+    await setCache(
+      { Key: TOKEN_LIST_CACHE_KEY, Body: tokenListBuffer, ContentType: "application/json" },
+      ttlForEveryIntervalOf(3600),
+    );
+  }
+  return tokenList;
+};
 
-  if (blacklistedTokens.includes(tokenAddress.toLowerCase())) {
-    return res
-      .status(404)
-      .set({
-        "Cache-Control": MAX_AGE_4_HOURS,
-        "CDN-Cache-Control": MAX_AGE_4_HOURS,
-      })
-      .send("NOT FOUND");
+const normalizeGeckoId = (value: string) => value.trim().toLowerCase();
+
+const getLocalTokenIcon = async (tokenId: string, assetsRoots: string[]) => {
+  for (const assetsRoot of assetsRoots) {
+    try {
+      if (!existsSync(assetsRoot)) continue;
+      if (existsSync(getSrcPath(tokenId, assetsRoot))) {
+        return getImage(tokenId, assetsRoot);
+      }
+    } catch (error) {
+      continue;
+    }
+  }
+  return null;
+};
+
+const getGeckoTokenAssetRoots = () => [
+  `${TOKEN_ASSETS_ROOT}/${GECKO_TOKEN_ASSETS_SUBDIR}`,
+  TOKEN_ASSETS_ROOT,
+];
+
+const getLocalGeckoTokenIcon = async (geckoId: string) => {
+  return getLocalTokenIcon(geckoId, getGeckoTokenAssetRoots());
+};
+
+const getLocalChainTokenIcon = async (chainId: string, tokenAddress: string) => {
+  return getLocalTokenIcon(
+    tokenAddress,
+    [`${TOKEN_ASSETS_ROOT}/${chainId}`],
+  );
+};
+
+const sendNotFound = (res: Response) =>
+  res
+    .status(404)
+    .set({
+      "Cache-Control": MAX_AGE_4_HOURS,
+      "CDN-Cache-Control": MAX_AGE_4_HOURS,
+    })
+    .send("NOT FOUND");
+
+const sendBadRequest = (res: Response) =>
+  res
+    .status(400)
+    .set({
+      "Cache-Control": MAX_AGE_1_YEAR,
+      "CDN-Cache-Control": MAX_AGE_1_YEAR,
+    })
+    .send("BAD REQUEST");
+
+const sendImage = (res: Response, contentType: string, payload: Buffer) =>
+  res
+    .status(200)
+    .set({
+      "Content-Type": contentType,
+      "Cache-Control": MAX_AGE_1_YEAR,
+      "CDN-Cache-Control": MAX_AGE_1_YEAR,
+    })
+    .send(payload);
+
+const serveGeckoTokenIcon = async (req: Request, res: Response, rawGeckoId: string) => {
+  const geckoId = normalizeGeckoId(rawGeckoId);
+  if (!geckoIdPattern.test(geckoId)) {
+    return sendBadRequest(res);
+  }
+
+  const resizeParams = extractParams(req);
+
+  const localImage = await getLocalGeckoTokenIcon(geckoId);
+  if (localImage) {
+    const { contentType, payload } = await resizeImage(resizeParams, localImage);
+    const cacheKey = getCacheKey(req);
+    if (cacheKey) {
+      await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+    }
+    return sendImage(res, contentType, payload);
   }
 
   const cacheKey = getCacheKey(req);
   if (!cacheKey) {
-    return res
-      .status(400)
-      .set({
-        "Cache-Control": MAX_AGE_1_YEAR,
-        "CDN-Cache-Control": MAX_AGE_1_YEAR,
-      })
-      .send("BAD REQUEST");
+    return sendBadRequest(res);
+  }
+
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    return sendImage(res, cached.ContentType, cached.Body);
+  }
+
+  const rawCacheKey = `${GECKO_TOKEN_S3_PREFIX}/${geckoId}`;
+  const buffer = await getFileFromS3OrCacheBuffer(rawCacheKey);
+  if (buffer) {
+    const { contentType, payload } = await resizeImageBuffer(resizeParams, buffer);
+    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+    return sendImage(res, contentType, payload);
+  }
+
+  const tokenList = await getTokenList();
+  const imgUrl = tokenList.gecko?.[geckoId];
+  const image = imgUrl ? await getImage(imgUrl) : null;
+  if (!imgUrl || !image) {
+    return sendNotFound(res);
+  }
+
+  const rawBuffer = await image.toBuffer();
+  const rawFormat = (await image.metadata()).format;
+  const rawContentType = `image/${rawFormat}`;
+  await saveFileToS3AndCache({
+    Key: rawCacheKey,
+    Body: rawBuffer,
+    ContentType: rawContentType,
+  });
+
+  const { contentType, payload } = await resizeImageBuffer(resizeParams, rawBuffer);
+  await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+  return sendImage(res, contentType, payload);
+};
+
+export const geckoTokensHandler = async (req: Request, res: Response) => {
+  return serveGeckoTokenIcon(req, res, req.params.geckoId);
+};
+
+// express app handler for route /tokens/:chainId/:tokenAddress
+export default async (req: Request, res: Response) => {
+  const { chainId, tokenAddress } = req.params;
+  const normalizedTokenAddress = tokenAddress.toLowerCase();
+
+  if (blacklistedTokens.includes(normalizedTokenAddress)) {
+    return sendNotFound(res);
+  }
+
+  const cacheKey = getCacheKey(req);
+  if (!cacheKey) {
+    return sendBadRequest(res);
   }
 
   const resizeParams = extractParams(req);
+  const localTokenImage = await getLocalChainTokenIcon(chainId, normalizedTokenAddress);
+  if (localTokenImage) {
+    const { contentType, payload } = await resizeImage(resizeParams, localTokenImage);
+    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+    return sendImage(res, contentType, payload);
+  }
+
+  const geckoId = chainId === "0" ? normalizeGeckoId(tokenAddress) : null;
+  if (geckoId && geckoIdPattern.test(geckoId)) {
+    const localGeckoImage = await getLocalGeckoTokenIcon(geckoId);
+    if (localGeckoImage) {
+      const { contentType, payload } = await resizeImage(resizeParams, localGeckoImage);
+      await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+      return sendImage(res, contentType, payload);
+    }
+  }
+
   const cached = await getCache(cacheKey);
   if (cached) {
     // if requested processed image is cached, just return it
-    return res
-      .status(200)
-      .set({
-        "Content-Type": cached.ContentType,
-        "Cache-Control": MAX_AGE_1_YEAR,
-        "CDN-Cache-Control": MAX_AGE_1_YEAR,
-      })
-      .send(cached.Body);
+    return sendImage(res, cached.ContentType, cached.Body);
   }
 
   let _contentType: string;
@@ -128,13 +278,7 @@ export default async (req: Request, res: Response) => {
     // if tokenAddress is 0x0, return chain icon
     const image = await getImage(chainIconUrls[Number(chainId)], "assets/agg_icons");
     if (!image) {
-      return res
-        .status(404)
-        .set({
-          "Cache-Control": MAX_AGE_4_HOURS,
-          "CDN-Cache-Control": MAX_AGE_4_HOURS,
-        })
-        .send("NOT FOUND");
+      return sendNotFound(res);
     }
     const { contentType, payload } = await resizeImage(resizeParams, image);
     _contentType = contentType;
@@ -150,33 +294,18 @@ export default async (req: Request, res: Response) => {
     } else {
       // if we don't have the HD token image, will need to fetch it using the url from token-list
       // first we need to get the token list
-      let tokenList: TokenList;
-      const tokenListCache = await getCache("token-list");
-      if (tokenListCache) {
-        tokenList = JSON.parse(tokenListCache.Body.toString());
-      } else {
-        // if we don't have the token list cached, compile it and cache it on redis
-        tokenList = await compileTokenList();
-        const tokenListPayload = JSON.stringify(tokenList);
-        const tokenListBuffer = Buffer.from(tokenListPayload);
-        await setCache(
-          { Key: "token-list", Body: tokenListBuffer, ContentType: "application/json" },
-          ttlForEveryIntervalOf(3600),
-        );
-      }
+      const tokenList = await getTokenList();
 
       // now we have the token list, fetch the actual token image
       const tokens = tokenList.tokens[Number(chainId)];
-      const imgUrl = tokens ? tokens[tokenAddress] : null;
+      const geckoImgUrl = chainId === "0" ? tokenList.gecko?.[normalizedTokenAddress] : null;
+      if (geckoImgUrl) {
+        return serveGeckoTokenIcon(req, res, normalizedTokenAddress);
+      }
+      const imgUrl = tokens ? tokens[tokenAddress] ?? tokens[normalizedTokenAddress] : null;
       const image = imgUrl ? await getImage(imgUrl) : null;
-      if (!tokens || !imgUrl || !image) {
-        return res
-          .status(404)
-          .set({
-            "Cache-Control": MAX_AGE_4_HOURS,
-            "CDN-Cache-Control": MAX_AGE_4_HOURS,
-          })
-          .send("NOT FOUND");
+      if (!imgUrl || !image) {
+        return sendNotFound(res);
       }
       const rawBuffer = await image.toBuffer();
       const rawFormat = (await image.metadata()).format;
@@ -196,12 +325,5 @@ export default async (req: Request, res: Response) => {
   }
 
   await setCache({ Key: cacheKey, Body: _payload, ContentType: _contentType });
-  return res
-    .status(200)
-    .set({
-      "Content-Type": _contentType,
-      "Cache-Control": MAX_AGE_1_YEAR,
-      "CDN-Cache-Control": MAX_AGE_1_YEAR,
-    })
-    .send(_payload);
+  return sendImage(res, _contentType, _payload);
 };

@@ -8,6 +8,9 @@ export type TokenList = {
       [token: string]: string;
     };
   };
+  gecko?: {
+    [geckoId: string]: string;
+  };
 };
 
 const oneInchChains = {
@@ -65,14 +68,17 @@ export const geckoChainsMap: { [chain: string]: number } = {
 	megaeth: 4326,
 };
 
-const CACHE_KEY = "token-list-v2";
+export const TOKEN_LIST_CACHE_KEY = "token-list-v3";
+
+const normalizeLogoUrl = (url: string) => url.replace("coin-images.coingecko.com", "assets.coingecko.com");
 
 export const compileTokenList = async (): Promise<TokenList> => {
-  const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
+  const [uniList, sushiList, geckoList, ownList, geckoLogoList] = await Promise.allSettled([
     fetch("https://tokens.uniswap.org/").then((r) => r.json()),
     fetch("https://token-list.sushi.com/").then((r) => r.json()),
     fetch("https://defillama-datasets.llama.fi/tokenlist/all.json").then((res) => res.json()),
     fetch("https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json").then((res) => res.json()),
+    fetch("https://defillama-datasets.llama.fi/tokenlist/logos.json").then((res) => res.json()),
   ]);
 
   const oneInch = await Promise.all(
@@ -91,6 +97,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
     .flat();
 
   const logoDirectory: { [chain: number]: { [token: string]: string } } = {};
+  const geckoLogoDirectory: { [geckoId: string]: string } = {};
 
   if (uniList.status === "fulfilled" && uniList.value.tokens) {
     uniList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
@@ -181,24 +188,28 @@ export const compileTokenList = async (): Promise<TokenList> => {
     });
   }
 
+  if (geckoLogoList.status === "fulfilled" && geckoLogoList.value && !Array.isArray(geckoLogoList.value)) {
+    for (const [geckoId, logoUrl] of Object.entries(geckoLogoList.value)) {
+      if (typeof geckoId !== "string" || typeof logoUrl !== "string" || !logoUrl) continue;
+      geckoLogoDirectory[geckoId.trim().toLowerCase()] = normalizeLogoUrl(logoUrl);
+    }
+  }
+
   // normalize coingecko CDN domain — coin-images.coingecko.com is undocumented
   // and serves stale images, assets.coingecko.com is the official domain per docs
   // https://docs.coingecko.com/reference/coins-id
   for (const chain in logoDirectory) {
     for (const token in logoDirectory[chain]) {
-      logoDirectory[chain][token] = logoDirectory[chain][token].replace(
-        'coin-images.coingecko.com',
-        'assets.coingecko.com'
-      );
+      logoDirectory[chain][token] = normalizeLogoUrl(logoDirectory[chain][token]);
     }
   }
 
-  return { tokens: logoDirectory };
+  return { tokens: logoDirectory, gecko: geckoLogoDirectory };
 };
 
 export default async (res: Response) => {
   try {
-    const cached = await getCache(CACHE_KEY);
+    const cached = await getCache(TOKEN_LIST_CACHE_KEY);
     if (cached) {
       const { Body, ContentType } = cached;
       res
@@ -219,7 +230,7 @@ export default async (res: Response) => {
     const buffer = Buffer.from(payload);
     await setCache(
       {
-        Key: CACHE_KEY,
+        Key: TOKEN_LIST_CACHE_KEY,
         Body: buffer,
         ContentType: "application/json",
       },
