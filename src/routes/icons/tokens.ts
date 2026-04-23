@@ -15,7 +15,13 @@ import {
   MAX_AGE_4_HOURS,
   ttlForEveryIntervalOf,
 } from "../../utils/cache-control-helper";
-import { TOKEN_LIST_CACHE_KEY, TokenList, compileTokenList } from "../token-list";
+import {
+  GECKO_LOGO_LIST_CACHE_KEY,
+  TOKEN_LIST_CACHE_KEY,
+  TokenList,
+  compileGeckoLogoList,
+  compileTokenList,
+} from "../token-list";
 
 const TOKEN_ASSETS_ROOT = "assets/tokens";
 const GECKO_TOKEN_ASSETS_SUBDIR = "gecko";
@@ -103,25 +109,47 @@ const blacklistedTokens = ["0x2338a5d62E9A766289934e8d2e83a443e8065b83"].map((to
 const getTokenList = async () => {
   const tokenListCache = await getCache(TOKEN_LIST_CACHE_KEY);
   if (tokenListCache) {
-    const tokenList: TokenList = JSON.parse(tokenListCache.Body.toString());
-    if (tokenList.gecko && Object.keys(tokenList.gecko).length > 0) {
-      return tokenList;
-    }
-    console.error(`[warn] [tokens] ignoring ${TOKEN_LIST_CACHE_KEY} without gecko logos`);
+    return JSON.parse(tokenListCache.Body.toString()) as TokenList;
   }
 
   const tokenList = await compileTokenList();
   const tokenListPayload = JSON.stringify(tokenList);
-  const tokenListBuffer = Buffer.from(tokenListPayload);
-  if (tokenList.gecko && Object.keys(tokenList.gecko).length > 0) {
+  await setCache(
+    { Key: TOKEN_LIST_CACHE_KEY, Body: Buffer.from(tokenListPayload), ContentType: "application/json" },
+    ttlForEveryIntervalOf(3600),
+  );
+  return tokenList;
+};
+
+const getGeckoLogoList = async () => {
+  const geckoLogoListCache = await getCache(GECKO_LOGO_LIST_CACHE_KEY);
+  if (geckoLogoListCache) {
+    return JSON.parse(geckoLogoListCache.Body.toString()) as Record<string, string>;
+  }
+
+  const geckoLogoList = await compileGeckoLogoList();
+  if (Object.keys(geckoLogoList).length > 0) {
+    const geckoLogoPayload = JSON.stringify(geckoLogoList);
     await setCache(
-      { Key: TOKEN_LIST_CACHE_KEY, Body: tokenListBuffer, ContentType: "application/json" },
+      { Key: GECKO_LOGO_LIST_CACHE_KEY, Body: Buffer.from(geckoLogoPayload), ContentType: "application/json" },
       ttlForEveryIntervalOf(3600),
     );
-  } else {
-    console.error(`[warn] [tokens] not caching ${TOKEN_LIST_CACHE_KEY} without gecko logos`);
+    return geckoLogoList;
   }
-  return tokenList;
+
+  const tokenList = await getTokenList();
+  const fallbackGeckoLogoList = tokenList.gecko ?? {};
+  if (Object.keys(fallbackGeckoLogoList).length > 0) {
+    await setCache(
+      {
+        Key: GECKO_LOGO_LIST_CACHE_KEY,
+        Body: Buffer.from(JSON.stringify(fallbackGeckoLogoList)),
+        ContentType: "application/json",
+      },
+      ttlForEveryIntervalOf(3600),
+    );
+  }
+  return fallbackGeckoLogoList;
 };
 
 const normalizeGeckoId = (value: string) => value.trim().toLowerCase();
@@ -174,6 +202,15 @@ const sendBadRequest = (res: Response) =>
     })
     .send("BAD REQUEST");
 
+const sendServerError = (res: Response) =>
+  res
+    .status(500)
+    .set({
+      "Cache-Control": MAX_AGE_10_MINUTES,
+      "CDN-Cache-Control": MAX_AGE_10_MINUTES,
+    })
+    .send("ERROR");
+
 const sendImage = (res: Response, contentType: string, payload: Buffer) =>
   res
     .status(200)
@@ -220,8 +257,8 @@ const serveGeckoTokenIcon = async (req: Request, res: Response, rawGeckoId: stri
     return sendImage(res, contentType, payload);
   }
 
-  const tokenList = await getTokenList();
-  const imgUrl = tokenList.gecko?.[geckoId];
+  const geckoLogoList = await getGeckoLogoList();
+  const imgUrl = geckoLogoList[geckoId];
   const image = imgUrl ? await getImage(imgUrl) : null;
   if (!imgUrl || !image) {
     return sendNotFound(res, MAX_AGE_10_MINUTES);
@@ -242,100 +279,114 @@ const serveGeckoTokenIcon = async (req: Request, res: Response, rawGeckoId: stri
 };
 
 export const geckoTokensHandler = async (req: Request, res: Response) => {
-  return serveGeckoTokenIcon(req, res, req.params.geckoId);
+  try {
+    return await serveGeckoTokenIcon(req, res, req.params.geckoId);
+  } catch (error) {
+    console.error(`[error] [geckoTokensHandler] ${req.originalUrl}`, error);
+    if (!res.headersSent) {
+      return sendServerError(res);
+    }
+  }
 };
 
 // express app handler for route /tokens/:chainId/:tokenAddress
 export default async (req: Request, res: Response) => {
-  const { chainId, tokenAddress } = req.params;
-  const normalizedTokenAddress = tokenAddress.toLowerCase();
+  try {
+    const { chainId, tokenAddress } = req.params;
+    const normalizedTokenAddress = tokenAddress.toLowerCase();
 
-  if (blacklistedTokens.includes(normalizedTokenAddress)) {
-    return sendNotFound(res);
-  }
+    if (blacklistedTokens.includes(normalizedTokenAddress)) {
+      return sendNotFound(res);
+    }
 
-  const cacheKey = getCacheKey(req);
-  if (!cacheKey) {
-    return sendBadRequest(res);
-  }
+    const cacheKey = getCacheKey(req);
+    if (!cacheKey) {
+      return sendBadRequest(res);
+    }
 
-  const resizeParams = extractParams(req);
-  const localTokenImage = await getLocalChainTokenIcon(chainId, normalizedTokenAddress);
-  if (localTokenImage) {
-    const { contentType, payload } = await resizeImage(resizeParams, localTokenImage);
-    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
-    return sendImage(res, contentType, payload);
-  }
-
-  const geckoId = chainId === "0" ? normalizeGeckoId(tokenAddress) : null;
-  if (geckoId && geckoIdPattern.test(geckoId)) {
-    const localGeckoImage = await getLocalGeckoTokenIcon(geckoId);
-    if (localGeckoImage) {
-      const { contentType, payload } = await resizeImage(resizeParams, localGeckoImage);
+    const resizeParams = extractParams(req);
+    const localTokenImage = await getLocalChainTokenIcon(chainId, normalizedTokenAddress);
+    if (localTokenImage) {
+      const { contentType, payload } = await resizeImage(resizeParams, localTokenImage);
       await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
       return sendImage(res, contentType, payload);
     }
-  }
 
-  const cached = await getCache(cacheKey);
-  if (cached) {
-    // if requested processed image is cached, just return it
-    return sendImage(res, cached.ContentType, cached.Body);
-  }
-
-  let _contentType: string;
-  let _payload: Buffer;
-
-  if (tokenAddress === "0x0000000000000000000000000000000000000000" && chainIconUrls[Number(chainId)]) {
-    // if tokenAddress is 0x0, return chain icon
-    const image = await getImage(chainIconUrls[Number(chainId)], "assets/agg_icons");
-    if (!image) {
-      return sendNotFound(res);
+    const geckoId = chainId === "0" ? normalizeGeckoId(tokenAddress) : null;
+    if (geckoId && geckoIdPattern.test(geckoId)) {
+      const localGeckoImage = await getLocalGeckoTokenIcon(geckoId);
+      if (localGeckoImage) {
+        const { contentType, payload } = await resizeImage(resizeParams, localGeckoImage);
+        await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+        return sendImage(res, contentType, payload);
+      }
     }
-    const { contentType, payload } = await resizeImage(resizeParams, image);
-    _contentType = contentType;
-    _payload = payload;
-  } else {
-    // check if we cached the HD token image on S3 or redis
-    const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${tokenAddress}`);
-    if (buffer) {
-      // if we have the HD token image, resize it and return
-      const { contentType, payload } = await resizeImageBuffer(resizeParams, buffer);
+
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      // if requested processed image is cached, just return it
+      return sendImage(res, cached.ContentType, cached.Body);
+    }
+
+    let _contentType: string;
+    let _payload: Buffer;
+
+    if (tokenAddress === "0x0000000000000000000000000000000000000000" && chainIconUrls[Number(chainId)]) {
+      // if tokenAddress is 0x0, return chain icon
+      const image = await getImage(chainIconUrls[Number(chainId)], "assets/agg_icons");
+      if (!image) {
+        return sendNotFound(res);
+      }
+      const { contentType, payload } = await resizeImage(resizeParams, image);
       _contentType = contentType;
       _payload = payload;
     } else {
-      // if we don't have the HD token image, will need to fetch it using the url from token-list
-      // first we need to get the token list
-      const tokenList = await getTokenList();
+      // check if we cached the HD token image on S3 or redis
+      const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${tokenAddress}`);
+      if (buffer) {
+        // if we have the HD token image, resize it and return
+        const { contentType, payload } = await resizeImageBuffer(resizeParams, buffer);
+        _contentType = contentType;
+        _payload = payload;
+      } else {
+        // if we don't have the HD token image, will need to fetch it using the url from token-list
+        // first we need to get the token list
+        const geckoImgUrl = chainId === "0" ? (await getGeckoLogoList())[normalizedTokenAddress] : null;
+        if (geckoImgUrl) {
+          return serveGeckoTokenIcon(req, res, normalizedTokenAddress);
+        }
+        const tokenList = await getTokenList();
 
-      // now we have the token list, fetch the actual token image
-      const tokens = tokenList.tokens[Number(chainId)];
-      const geckoImgUrl = chainId === "0" ? tokenList.gecko?.[normalizedTokenAddress] : null;
-      if (geckoImgUrl) {
-        return serveGeckoTokenIcon(req, res, normalizedTokenAddress);
-      }
-      const imgUrl = tokens ? tokens[tokenAddress] ?? tokens[normalizedTokenAddress] : null;
-      const image = imgUrl ? await getImage(imgUrl) : null;
-      if (!imgUrl || !image) {
-        return sendNotFound(res);
-      }
-      const rawBuffer = await image.toBuffer();
-      const rawFormat = (await image.metadata()).format;
-      const rawContentType = `image/${rawFormat}`;
-      // save the HD token image to S3 and cache it on redis
-      await saveFileToS3AndCache({
-        Key: `token/${chainId}/${tokenAddress}`,
-        Body: rawBuffer,
-        ContentType: rawContentType,
-      });
+        // now we have the token list, fetch the actual token image
+        const tokens = tokenList.tokens[Number(chainId)];
+        const imgUrl = tokens ? tokens[tokenAddress] ?? tokens[normalizedTokenAddress] : null;
+        const image = imgUrl ? await getImage(imgUrl) : null;
+        if (!imgUrl || !image) {
+          return sendNotFound(res);
+        }
+        const rawBuffer = await image.toBuffer();
+        const rawFormat = (await image.metadata()).format;
+        const rawContentType = `image/${rawFormat}`;
+        // save the HD token image to S3 and cache it on redis
+        await saveFileToS3AndCache({
+          Key: `token/${chainId}/${tokenAddress}`,
+          Body: rawBuffer,
+          ContentType: rawContentType,
+        });
 
-      // generate the resized token image to return
-      const { contentType, payload } = await resizeImageBuffer(resizeParams, rawBuffer);
-      _contentType = contentType;
-      _payload = payload;
+        // generate the resized token image to return
+        const { contentType, payload } = await resizeImageBuffer(resizeParams, rawBuffer);
+        _contentType = contentType;
+        _payload = payload;
+      }
+    }
+
+    await setCache({ Key: cacheKey, Body: _payload, ContentType: _contentType });
+    return sendImage(res, _contentType, _payload);
+  } catch (error) {
+    console.error(`[error] [tokensHandler] ${req.originalUrl}`, error);
+    if (!res.headersSent) {
+      return sendServerError(res);
     }
   }
-
-  await setCache({ Key: cacheKey, Body: _payload, ContentType: _contentType });
-  return sendImage(res, _contentType, _payload);
 };

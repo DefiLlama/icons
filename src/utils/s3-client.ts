@@ -8,6 +8,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
+import { withTimeout } from "./async-timeout";
 
 const S3_ENDPOINT = process.env.S3_ENDPOINT as string;
 const S3_BUCKET = process.env.S3_BUCKET as string;
@@ -22,6 +23,7 @@ const S3_CLIENT = new S3Client({
     secretAccessKey: S3_SECRET_ACCESS_KEY,
   },
 });
+const S3_TIMEOUT_MS = 3000;
 
 // principals -
 // to optimize for speed, we don't do retries, so failures to get from S3 due to whatever reason are treated as misses.
@@ -32,7 +34,7 @@ const S3_CLIENT = new S3Client({
 export const doesFileExistInS3 = async (key: string) => {
   try {
     const command = new HeadObjectCommand({ Bucket: S3_BUCKET, Key: key });
-    await S3_CLIENT.send(command);
+    await withTimeout(S3_CLIENT.send(command), S3_TIMEOUT_MS, "S3 head");
     return true;
   } catch (error) {
     if ((error as any).Code === "NoSuchKey") {
@@ -47,7 +49,7 @@ export const doesFileExistInS3 = async (key: string) => {
 export const saveFileToS3 = async ({ Key, Body, ContentType }: { Key: string; Body?: Buffer; ContentType: string }) => {
   try {
     const command = new PutObjectCommand({ Bucket: S3_BUCKET, Key, Body, ContentType });
-    await S3_CLIENT.send(command);
+    await withTimeout(S3_CLIENT.send(command), S3_TIMEOUT_MS, "S3 put");
     return true;
   } catch (error) {
     console.error("[error] [S3] [failed to save]", Key);
@@ -59,8 +61,8 @@ export const saveFileToS3 = async ({ Key, Body, ContentType }: { Key: string; Bo
 export const getFileFromS3 = async (key: string) => {
   try {
     const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: key });
-    const res = await S3_CLIENT.send(command);
-    const data = await res.Body?.transformToByteArray();
+    const res = await withTimeout(S3_CLIENT.send(command), S3_TIMEOUT_MS, "S3 get");
+    const data = await withTimeout(res.Body?.transformToByteArray() ?? Promise.resolve(undefined), S3_TIMEOUT_MS, "S3 body");
     const ContentType = res.ContentType;
 
     if (!data || !ContentType || data.length === 0) {
@@ -81,7 +83,7 @@ export const getFileFromS3 = async (key: string) => {
 export const deleteFileFromS3 = async (key: string) => {
   try {
     const command = new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key });
-    await S3_CLIENT.send(command);
+    await withTimeout(S3_CLIENT.send(command), S3_TIMEOUT_MS, "S3 delete");
     return true;
   } catch (error) {
     console.error("[error] [S3] [failed to delete]", key);

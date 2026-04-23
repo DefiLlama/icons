@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import { getCache, saveFileToS3AndCache } from "../../utils/cache-client";
-import { resToBuffer } from "../../utils/response";
 import { doesFileExistInS3 } from "../../utils/s3-client";
 import { TOKEN_LIST_CACHE_KEY, TokenList, compileTokenList } from "../token-list";
+import { fetchBufferWithTimeout } from "../../utils/async-timeout";
+
+const TOKEN_IMAGE_FETCH_TIMEOUT_MS = 8000;
 
 export default async (req: Request, res: Response) => {
   const { authorization } = req.headers;
@@ -34,8 +36,9 @@ export default async (req: Request, res: Response) => {
       }
     }
 
-    for (const geckoId in tokenList.gecko ?? {}) {
-      await fetchAndSaveTokenImage(`token/gecko/${geckoId}`, tokenList.gecko[geckoId]);
+    const geckoTokens = tokenList.gecko ?? {};
+    for (const geckoId in geckoTokens) {
+      await fetchAndSaveTokenImage(`token/gecko/${geckoId}`, geckoTokens[geckoId]);
 
       processed++;
       if (processed % 25 === 0) {
@@ -55,23 +58,19 @@ const fetchAndSaveTokenImage = async (key: string, imgUrl: string) => {
   const exists = await doesFileExistInS3(key);
   if (exists) return;
 
-  const tokenImage = await fetch(imgUrl.replace("/thumb/", "/large/"));
+  const tokenImage = await fetchBufferWithTimeout(imgUrl.replace("/thumb/", "/large/"), TOKEN_IMAGE_FETCH_TIMEOUT_MS);
 
   if (isValidImage(tokenImage)) {
-    const resBuffer = await resToBuffer(tokenImage);
-
     await saveFileToS3AndCache({
       Key: key,
-      Body: resBuffer,
-      ContentType: tokenImage.headers.get("content-type") || "image/jpeg",
+      Body: tokenImage.buffer,
+      ContentType: tokenImage.contentType || "image/jpeg",
     });
 
     console.log(`saved ${imgUrl}`);
   }
 };
 
-const isValidImage = (res: globalThis.Response) => {
-  const imgType = res.headers.get("content-type");
-
-  return imgType && imgType.startsWith("image") ? true : false;
+const isValidImage = (res: { contentType: string | null; ok: boolean }) => {
+  return !!(res.ok && res.contentType?.startsWith("image"));
 };
