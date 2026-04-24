@@ -12,6 +12,12 @@ export type TokenList = {
   gecko?: {
     [geckoId: string]: string;
   };
+  geckoPlatforms?: {
+    [geckoId: string]: Array<{
+      chainId: number;
+      tokenAddress: string;
+    }>;
+  };
 };
 
 const oneInchChains = {
@@ -69,11 +75,12 @@ export const geckoChainsMap: { [chain: string]: number } = {
 	megaeth: 4326,
 };
 
-export const TOKEN_LIST_CACHE_KEY = "token-list-v4";
+export const TOKEN_LIST_CACHE_KEY = "token-list-v5";
 export const GECKO_LOGO_LIST_CACHE_KEY = "token-gecko-logos-v1";
 const TOKEN_LIST_FETCH_TIMEOUT_MS = 8000;
 
 const normalizeLogoUrl = (url: string) => url.replace("coin-images.coingecko.com", "assets.coingecko.com");
+const normalizeGeckoKey = (value: string) => value.trim().toLowerCase();
 
 const normalizeGeckoLogoDirectory = (geckoLogoList: Record<string, string>) => {
   const geckoLogoDirectory: Record<string, string> = {};
@@ -82,7 +89,7 @@ const normalizeGeckoLogoDirectory = (geckoLogoList: Record<string, string>) => {
     if (!Object.hasOwn(geckoLogoList, geckoId)) continue;
     const logoUrl = geckoLogoList[geckoId];
     if (typeof geckoId !== "string" || typeof logoUrl !== "string" || !logoUrl) continue;
-    geckoLogoDirectory[geckoId.trim().toLowerCase()] = normalizeLogoUrl(logoUrl);
+    geckoLogoDirectory[normalizeGeckoKey(geckoId)] = normalizeLogoUrl(logoUrl);
   }
 
   return geckoLogoDirectory;
@@ -134,10 +141,35 @@ export const compileTokenList = async (): Promise<TokenList> => {
     .flat();
 
   const logoDirectory: { [chain: number]: { [token: string]: string } } = {};
+  const geckoPlatformDirectory: NonNullable<TokenList["geckoPlatforms"]> = {};
   const geckoLogoDirectory: { [geckoId: string]: string } =
     geckoLogoList.status === "fulfilled" && !Array.isArray(geckoLogoList.value)
       ? normalizeGeckoLogoDirectory(geckoLogoList.value as Record<string, string>)
       : {};
+  const geckoIdsByLogoUrl: Record<string, string[]> = {};
+  for (const geckoId in geckoLogoDirectory) {
+    const logoUrl = geckoLogoDirectory[geckoId];
+    if (!geckoIdsByLogoUrl[logoUrl]) {
+      geckoIdsByLogoUrl[logoUrl] = [];
+    }
+    geckoIdsByLogoUrl[logoUrl].push(geckoId);
+  }
+  const addGeckoPlatform = (geckoId: string, chainId: number, tokenAddress: string) => {
+    if (!geckoPlatformDirectory[geckoId]) {
+      geckoPlatformDirectory[geckoId] = [];
+    }
+
+    if (
+      !geckoPlatformDirectory[geckoId].some(
+        (platformToken) => platformToken.chainId === chainId && platformToken.tokenAddress === tokenAddress,
+      )
+    ) {
+      geckoPlatformDirectory[geckoId].push({
+        chainId,
+        tokenAddress,
+      });
+    }
+  };
 
   if (uniList.status === "fulfilled" && uniList.value.tokens) {
     uniList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
@@ -212,11 +244,16 @@ export const compileTokenList = async (): Promise<TokenList> => {
             if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
               logoDirectory[chainId][address] = token.logoURI;
             }
+
+            const geckoIds = token.logoURI ? geckoIdsByLogoUrl[normalizeLogoUrl(token.logoURI)] ?? [] : [];
+            for (const geckoId of geckoIds) {
+              addGeckoPlatform(geckoId, chainId, address);
+            }
           }
         }
       }
 
-      const name = token.name.toLowerCase();
+      const name = normalizeGeckoKey(token.name);
 
       if (!logoDirectory[0]) {
         logoDirectory[0] = {};
@@ -237,7 +274,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
     }
   }
 
-  return { tokens: logoDirectory, gecko: geckoLogoDirectory };
+  return { tokens: logoDirectory, gecko: geckoLogoDirectory, geckoPlatforms: geckoPlatformDirectory };
 };
 
 export default async (res: Response) => {

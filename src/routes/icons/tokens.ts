@@ -184,6 +184,96 @@ const getLocalChainTokenIcon = async (chainId: string, tokenAddress: string) => 
   );
 };
 
+type ResolvedTokenIcon =
+  | {
+      type: "image";
+      image: NonNullable<Awaited<ReturnType<typeof getImage>>>;
+    }
+  | {
+      type: "buffer";
+      buffer: Buffer;
+    };
+
+const resizeResolvedTokenIcon = (resizeParams: Parameters<typeof resizeImage>[0], icon: ResolvedTokenIcon) => {
+  if (icon.type === "image") {
+    return resizeImage(resizeParams, icon.image);
+  }
+
+  return resizeImageBuffer(resizeParams, icon.buffer);
+};
+
+const getS3TokenImage = async (chainId: string, tokenAddress: string) => {
+  const normalizedTokenAddress = tokenAddress.toLowerCase();
+  const tokenAddresses = Array.from(new Set([tokenAddress, normalizedTokenAddress]));
+
+  for (const address of tokenAddresses) {
+    const buffer = await getFileFromS3OrCacheBuffer(`token/${chainId}/${address}`);
+    if (buffer) {
+      return buffer;
+    }
+  }
+
+  return null;
+};
+
+const resolveChainTokenIcon = async (chainId: string, tokenAddress: string, tokenList: TokenList) => {
+  const normalizedTokenAddress = tokenAddress.toLowerCase();
+  if (blacklistedTokens.includes(normalizedTokenAddress)) {
+    return null;
+  }
+
+  const localTokenImage = await getLocalChainTokenIcon(chainId, normalizedTokenAddress);
+  if (localTokenImage) {
+    return {
+      type: "image",
+      image: localTokenImage,
+    } satisfies ResolvedTokenIcon;
+  }
+
+  const buffer = await getS3TokenImage(chainId, normalizedTokenAddress);
+  if (buffer) {
+    return {
+      type: "buffer",
+      buffer,
+    } satisfies ResolvedTokenIcon;
+  }
+
+  const tokens = tokenList.tokens[Number(chainId)];
+  const imgUrl = tokens ? tokens[tokenAddress] ?? tokens[normalizedTokenAddress] : null;
+  const image = imgUrl ? await getImage(imgUrl) : null;
+  if (!imgUrl || !image) {
+    return null;
+  }
+
+  const rawBuffer = await image.toBuffer();
+  const rawFormat = (await image.metadata()).format;
+  const rawContentType = `image/${rawFormat}`;
+  await saveFileToS3AndCache({
+    Key: `token/${chainId}/${normalizedTokenAddress}`,
+    Body: rawBuffer,
+    ContentType: rawContentType,
+  });
+
+  return {
+    type: "buffer",
+    buffer: rawBuffer,
+  } satisfies ResolvedTokenIcon;
+};
+
+const resolveGeckoPlatformTokenIcon = async (geckoId: string) => {
+  const tokenList = await getTokenList();
+  const platformTokens = tokenList.geckoPlatforms?.[geckoId] ?? [];
+
+  for (const platformToken of platformTokens) {
+    const icon = await resolveChainTokenIcon(String(platformToken.chainId), platformToken.tokenAddress, tokenList);
+    if (icon) {
+      return icon;
+    }
+  }
+
+  return null;
+};
+
 const sendNotFound = (res: Response, cacheControl = MAX_AGE_4_HOURS) =>
   res
     .status(404)
@@ -242,6 +332,13 @@ const serveGeckoTokenIcon = async (req: Request, res: Response, rawGeckoId: stri
   const cacheKey = getCacheKey(req);
   if (!cacheKey) {
     return sendBadRequest(res);
+  }
+
+  const platformTokenIcon = await resolveGeckoPlatformTokenIcon(geckoId);
+  if (platformTokenIcon) {
+    const { contentType, payload } = await resizeResolvedTokenIcon(resizeParams, platformTokenIcon);
+    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+    return sendImage(res, contentType, payload);
   }
 
   const cached = await getCache(cacheKey);
@@ -317,6 +414,13 @@ export default async (req: Request, res: Response) => {
       const localGeckoImage = await getLocalGeckoTokenIcon(geckoId);
       if (localGeckoImage) {
         const { contentType, payload } = await resizeImage(resizeParams, localGeckoImage);
+        await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+        return sendImage(res, contentType, payload);
+      }
+
+      const platformTokenIcon = await resolveGeckoPlatformTokenIcon(geckoId);
+      if (platformTokenIcon) {
+        const { contentType, payload } = await resizeResolvedTokenIcon(resizeParams, platformTokenIcon);
         await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
         return sendImage(res, contentType, payload);
       }
