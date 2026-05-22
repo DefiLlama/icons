@@ -158,7 +158,6 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   "liquidations": "assets/liquidations",
   "memes": "assets/memes",
   "misc": "assets/misc",
-  // "nfts": "assets/nfts",
   "pegged": "assets/pegged",
   "protocols": "assets/protocols",
   "rwa": "assets/rwa",
