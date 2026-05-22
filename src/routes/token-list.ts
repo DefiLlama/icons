@@ -1,12 +1,22 @@
 import { Response } from "express";
 import { setCache, getCache } from "../utils/cache-client";
 import { forEveryIntervalOf, ttlForEveryIntervalOf } from "../utils/cache-control-helper";
+import { fetchJsonWithTimeout } from "../utils/async-timeout";
 
 export type TokenList = {
   tokens: {
     [chain: number]: {
       [token: string]: string;
     };
+  };
+  gecko?: {
+    [geckoId: string]: string;
+  };
+  geckoPlatforms?: {
+    [geckoId: string]: Array<{
+      chainId: number;
+      tokenAddress: string;
+    }>;
   };
 };
 
@@ -65,32 +75,101 @@ export const geckoChainsMap: { [chain: string]: number } = {
 	megaeth: 4326,
 };
 
-const CACHE_KEY = "token-list-v2";
+export const TOKEN_LIST_CACHE_KEY = "token-list-v5";
+export const GECKO_LOGO_LIST_CACHE_KEY = "token-gecko-logos-v1";
+const TOKEN_LIST_FETCH_TIMEOUT_MS = 8000;
+
+const normalizeLogoUrl = (url: string) => url.replace("coin-images.coingecko.com", "assets.coingecko.com");
+const normalizeGeckoKey = (value: string) => value.trim().toLowerCase();
+
+const normalizeGeckoLogoDirectory = (geckoLogoList: Record<string, string>) => {
+  const geckoLogoDirectory: Record<string, string> = {};
+
+  for (const geckoId in geckoLogoList) {
+    if (!Object.hasOwn(geckoLogoList, geckoId)) continue;
+    const logoUrl = geckoLogoList[geckoId];
+    if (typeof geckoId !== "string" || typeof logoUrl !== "string" || !logoUrl) continue;
+    geckoLogoDirectory[normalizeGeckoKey(geckoId)] = normalizeLogoUrl(logoUrl);
+  }
+
+  return geckoLogoDirectory;
+};
+
+export const compileGeckoLogoList = async (): Promise<Record<string, string>> => {
+  try {
+    const geckoLogoList = await fetchJsonWithTimeout<Record<string, string>>(
+      "https://defillama-datasets.llama.fi/tokenlist/logos.json",
+      TOKEN_LIST_FETCH_TIMEOUT_MS,
+    );
+    return normalizeGeckoLogoDirectory(geckoLogoList);
+  } catch (error) {
+    console.error("[error] [token-list] [gecko logos]");
+    console.error(error);
+    return {};
+  }
+};
 
 export const compileTokenList = async (): Promise<TokenList> => {
-  const [uniList, sushiList, geckoList, ownList] = await Promise.allSettled([
-    fetch("https://tokens.uniswap.org/").then((r) => r.json()),
-    fetch("https://token-list.sushi.com/").then((r) => r.json()),
-    fetch("https://defillama-datasets.llama.fi/tokenlist/all.json").then((res) => res.json()),
-    fetch("https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json").then((res) => res.json()),
+  const [uniList, sushiList, geckoList, ownList, geckoLogoList] = await Promise.allSettled([
+    fetchJsonWithTimeout<any>("https://tokens.uniswap.org/", TOKEN_LIST_FETCH_TIMEOUT_MS),
+    fetchJsonWithTimeout<any>("https://token-list.sushi.com/", TOKEN_LIST_FETCH_TIMEOUT_MS),
+    fetchJsonWithTimeout<any>("https://defillama-datasets.llama.fi/tokenlist/all.json", TOKEN_LIST_FETCH_TIMEOUT_MS),
+    fetchJsonWithTimeout<any>(
+      "https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json",
+      TOKEN_LIST_FETCH_TIMEOUT_MS,
+    ),
+    fetchJsonWithTimeout<any>("https://defillama-datasets.llama.fi/tokenlist/logos.json", TOKEN_LIST_FETCH_TIMEOUT_MS),
   ]);
 
-  const oneInch = await Promise.all(
+  const oneInch = await Promise.allSettled(
     Object.values(oneInchChains).map(async (chainId) =>
-      fetch(`https://tokens.1inch.io/v1.2/${chainId}`).then((r) => r.json()),
+      fetchJsonWithTimeout<Record<string, any>>(`https://tokens.1inch.io/v1.2/${chainId}`, TOKEN_LIST_FETCH_TIMEOUT_MS),
     ),
   );
 
   const oneInchList = Object.values(oneInchChains)
-    .map((chainId, i) =>
-      Object.values(oneInch[i] as {}).map((token: any) => ({
+    .map((chainId, i) => {
+      const result = oneInch[i];
+      if (result.status !== "fulfilled" || !result.value || Array.isArray(result.value)) {
+        return [];
+      }
+      return Object.values(result.value).map((token: any) => ({
         ...token,
         chainId,
-      })),
-    )
+      }));
+    })
     .flat();
 
   const logoDirectory: { [chain: number]: { [token: string]: string } } = {};
+  const geckoPlatformDirectory: NonNullable<TokenList["geckoPlatforms"]> = {};
+  const geckoLogoDirectory: { [geckoId: string]: string } =
+    geckoLogoList.status === "fulfilled" && !Array.isArray(geckoLogoList.value)
+      ? normalizeGeckoLogoDirectory(geckoLogoList.value as Record<string, string>)
+      : {};
+  const geckoIdsByLogoUrl: Record<string, string[]> = {};
+  for (const geckoId in geckoLogoDirectory) {
+    const logoUrl = geckoLogoDirectory[geckoId];
+    if (!geckoIdsByLogoUrl[logoUrl]) {
+      geckoIdsByLogoUrl[logoUrl] = [];
+    }
+    geckoIdsByLogoUrl[logoUrl].push(geckoId);
+  }
+  const addGeckoPlatform = (geckoId: string, chainId: number, tokenAddress: string) => {
+    if (!geckoPlatformDirectory[geckoId]) {
+      geckoPlatformDirectory[geckoId] = [];
+    }
+
+    if (
+      !geckoPlatformDirectory[geckoId].some(
+        (platformToken) => platformToken.chainId === chainId && platformToken.tokenAddress === tokenAddress,
+      )
+    ) {
+      geckoPlatformDirectory[geckoId].push({
+        chainId,
+        tokenAddress,
+      });
+    }
+  };
 
   if (uniList.status === "fulfilled" && uniList.value.tokens) {
     uniList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
@@ -122,7 +201,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
     });
   }
 
-  if (ownList.status === "fulfilled" && ownList.value) {
+  if (ownList.status === "fulfilled" && Array.isArray(ownList.value)) {
     ownList.value.forEach((token: { address: string; logoURI: string; chainId: number }) => {
       const address = token.address.toLowerCase();
 
@@ -150,7 +229,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
     });
   }
 
-  if (geckoList.status === "fulfilled") {
+  if (geckoList.status === "fulfilled" && Array.isArray(geckoList.value)) {
     geckoList.value.forEach((token: { name: string; logoURI: string; platforms: { [chain: string]: string } }) => {
       if (token.platforms) {
         for (const chain in token.platforms) {
@@ -165,11 +244,16 @@ export const compileTokenList = async (): Promise<TokenList> => {
             if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
               logoDirectory[chainId][address] = token.logoURI;
             }
+
+            const geckoIds = token.logoURI ? geckoIdsByLogoUrl[normalizeLogoUrl(token.logoURI)] ?? [] : [];
+            for (const geckoId of geckoIds) {
+              addGeckoPlatform(geckoId, chainId, address);
+            }
           }
         }
       }
 
-      const name = token.name.toLowerCase();
+      const name = normalizeGeckoKey(token.name);
 
       if (!logoDirectory[0]) {
         logoDirectory[0] = {};
@@ -186,19 +270,16 @@ export const compileTokenList = async (): Promise<TokenList> => {
   // https://docs.coingecko.com/reference/coins-id
   for (const chain in logoDirectory) {
     for (const token in logoDirectory[chain]) {
-      logoDirectory[chain][token] = logoDirectory[chain][token].replace(
-        'coin-images.coingecko.com',
-        'assets.coingecko.com'
-      );
+      logoDirectory[chain][token] = normalizeLogoUrl(logoDirectory[chain][token]);
     }
   }
 
-  return { tokens: logoDirectory };
+  return { tokens: logoDirectory, gecko: geckoLogoDirectory, geckoPlatforms: geckoPlatformDirectory };
 };
 
 export default async (res: Response) => {
   try {
-    const cached = await getCache(CACHE_KEY);
+    const cached = await getCache(TOKEN_LIST_CACHE_KEY);
     if (cached) {
       const { Body, ContentType } = cached;
       res
@@ -219,7 +300,7 @@ export default async (res: Response) => {
     const buffer = Buffer.from(payload);
     await setCache(
       {
-        Key: CACHE_KEY,
+        Key: TOKEN_LIST_CACHE_KEY,
         Body: buffer,
         ContentType: "application/json",
       },

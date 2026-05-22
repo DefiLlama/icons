@@ -7,11 +7,10 @@ config();
 import rootHandler from "./routes";
 import purgeHandler from "./routes/purge";
 import tokenListHandler from "./routes/token-list";
-import tokensHandler from "./routes/icons/tokens";
+import tokensHandler, { geckoTokensHandler } from "./routes/icons/tokens";
 import fetchAndStoreTokensHandler from "./routes/icons/fetch-and-store-tokens";
 import { handleImageResize } from "./utils/image-resize";
 import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS } from "./utils/cache-control-helper";
-import { handlePalette } from "./utils/get-color";
 
 const app = express();
 app.disable("x-powered-by");
@@ -52,6 +51,7 @@ app.use(
 app.get("/", rootHandler);
 // app.get("/token-list", tokenListHandler); // TODO: fix or remove, it's not used anywhere beyond icons server
 app.post("/purge", purgeHandler);
+app.get("/icons/tokens/gecko/:geckoId", geckoTokensHandler);
 app.get("/icons/tokens/:chainId/:tokenAddress", tokensHandler);
 app.get("/icons/notfound", (_: Request, res: Response) => {
   const buffer = fs.readFileSync("./assets/notfound.png");
@@ -64,7 +64,6 @@ app.get("/icons/notfound", (_: Request, res: Response) => {
     .send(buffer);
 });
 app.get("/icons/:category/:name", handleImageResize);
-app.get("/palette/:category/:name", handlePalette);
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
 
