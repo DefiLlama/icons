@@ -8,9 +8,10 @@ import sharp from "sharp";
 import { getCache, setCache, sluggify } from "./cache-client";
 import { MAX_AGE_1_YEAR, MAX_AGE_10_MINUTES, MAX_AGE_4_HOURS } from "./cache-control-helper";
 import type { Request, Response } from "express";
-import { resToImage } from "./response";
+import { fetchBufferWithTimeout } from "./async-timeout";
 
 const blacklistedDomains = ["shibawallet.pro"];
+const IMAGE_FETCH_TIMEOUT_MS = 8000;
 
 interface ResizeParams {
   width: number | undefined;
@@ -152,20 +153,23 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   "agg_icons": "assets/agg_icons",
   "chains": "assets/chains",
   "directory": "assets/directory",
+  "equities": "assets/equities",
   "extension": "assets/extension",
   "liquidations": "assets/liquidations",
   "memes": "assets/memes",
   "misc": "assets/misc",
-  // "nfts": "assets/nfts",
   "pegged": "assets/pegged",
   "protocols": "assets/protocols",
+  "rwa": "assets/rwa",
   "stocks": "assets/stocks",
 };
 
 export const handleImageResize = async (req: Request, res: Response) => {
   try {
-    const Key = getCacheKey(req);
-    if (Key === null) {
+    // Equities tickers are case-sensitive in the asset filenames, so keep the raw request URL as the cache key.
+    const { category, name } = req.params;
+    const Key = category === "equities" ? req.originalUrl.replace(/^\//, "").replace(/\/$/, "") : getCacheKey(req);
+    if (!Key) {
       return res
         .status(400)
         .set({
@@ -177,7 +181,6 @@ export const handleImageResize = async (req: Request, res: Response) => {
 
     const resizeParams = extractParams(req);
     // take the first 2 parts of the path
-    const { category, name } = req.params;
 
     if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
       console.error(`[error] [handleImageResize] ${req.originalUrl}`);
@@ -306,8 +309,15 @@ export const getImage = async (src: string, assetsRoot?: string) => {
       if (blacklistedDomains.some((domain) => src.toLowerCase().includes(domain.toLowerCase()))) {
         return null;
       }
-      const res = await fetch(src.replace("/thumb/", "/large/"));
-      return await resToImage(res);
+      const url = src.replace("/thumb/", "/large/");
+      const { buffer, contentType, ok, status, responseUrl } = await fetchBufferWithTimeout(url, IMAGE_FETCH_TIMEOUT_MS);
+      if (!ok || !contentType?.startsWith("image")) {
+        console.error(`[error] [getImage] invalid response ${status} ${contentType ?? "unknown"} ${responseUrl}`);
+        return null;
+      }
+      const image = sharp(buffer);
+      await image.metadata();
+      return image;
     } else {
       return null;
     }

@@ -3,12 +3,22 @@ config();
 
 import Redis from "ioredis";
 import { saveFileToS3, getFileFromS3, deleteFileFromS3 } from "./s3-client";
+import { withTimeout } from "./async-timeout";
 
 const REDIS_URL = process.env.REDIS_URL as string;
-const redis = new Redis(REDIS_URL);
+const redis = new Redis(REDIS_URL, {
+  connectTimeout: 1000,
+  maxRetriesPerRequest: 1,
+  retryStrategy: (retries) => Math.min(retries * 200, 2000),
+});
+const REDIS_TIMEOUT_MS = 1500;
 
 const CF_PURGE_CACHE_AUTH = process.env.CF_PURGE_CACHE_AUTH as string;
 const CF_ZONE = process.env.CF_ZONE as string;
+
+redis.on("error", (error) => {
+  console.error("[error] [redis]", error);
+});
 
 export const sluggify = (input: string) => {
   const slug = decodeURIComponent(input)
@@ -35,9 +45,9 @@ export const setCache = async (payload: { Key: string; Body: Buffer; ContentType
       ContentType: payload.ContentType,
     };
     if (ttl) {
-      await redis.set(payload.Key, JSON.stringify(cacheObject), "EX", ttl);
+      await withTimeout(redis.set(payload.Key, JSON.stringify(cacheObject), "EX", ttl), REDIS_TIMEOUT_MS, "redis set");
     } else {
-      await redis.set(payload.Key, JSON.stringify(cacheObject));
+      await withTimeout(redis.set(payload.Key, JSON.stringify(cacheObject)), REDIS_TIMEOUT_MS, "redis set");
     }
     return true;
   } catch (error) {
@@ -49,7 +59,7 @@ export const setCache = async (payload: { Key: string; Body: Buffer; ContentType
 
 export const getCache = async (Key: string) => {
   try {
-    const res = await redis.get(Key);
+    const res = await withTimeout(redis.get(Key), REDIS_TIMEOUT_MS, "redis get");
     if (res === null) {
       return null;
     }
@@ -69,7 +79,7 @@ export const getCache = async (Key: string) => {
 
 export const deleteCache = async (Key: string) => {
   try {
-    await redis.del(Key);
+    await withTimeout(redis.del(Key), REDIS_TIMEOUT_MS, "redis del");
     return true;
   } catch (error) {
     console.error("[error] [cache] [failed to delete]", Key);
