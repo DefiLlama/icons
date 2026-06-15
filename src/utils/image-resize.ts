@@ -164,12 +164,73 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   "stocks": "assets/stocks",
 };
 
-export const handleImageResize = async (req: Request, res: Response) => {
+const getRawUrlCacheKey = (req: Request) => req.originalUrl.replace(/^\//, "").replace(/\/$/, "");
+
+const isSafePathSegment = (value: string) => value.length > 0 && value !== "." && value !== ".." && !/[\\/]/.test(value);
+
+const handleAssetImageResize = async (
+  req: Request,
+  res: Response,
+  {
+    cacheKey,
+    assetsRoot,
+    name,
+  }: {
+    cacheKey: string | null;
+    assetsRoot: string;
+    name: string;
+  },
+) => {
+  if (!cacheKey) {
+    return res
+      .status(400)
+      .set({
+        "Cache-Control": MAX_AGE_1_YEAR,
+        "CDN-Cache-Control": MAX_AGE_1_YEAR,
+      })
+      .send("BAD REQUEST");
+  }
+
+  const resizeParams = extractParams(req);
+  let _contentType: string;
+  let _payload: Buffer;
+  const cacheObject = await getCache(cacheKey);
+
+  if (cacheObject) {
+    _contentType = cacheObject.ContentType;
+    _payload = cacheObject.Body;
+  } else {
+    const image = await getImage(name, assetsRoot);
+    if (!image) {
+      return res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
+    }
+
+    const { payload, contentType } = await resizeImage(resizeParams, image);
+    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+    _contentType = contentType;
+    _payload = payload;
+  }
+
+  return res
+    .status(200)
+    .set({
+      "Content-Type": _contentType,
+      "Cache-Control": MAX_AGE_1_YEAR,
+      "CDN-Cache-Control": MAX_AGE_1_YEAR,
+    })
+    .send(_payload);
+};
+
+export const handleEquityImageResize = async (req: Request, res: Response) => {
   try {
-    // Equities tickers are case-sensitive in the asset filenames, so keep the raw request URL as the cache key.
-    const { category, name } = req.params;
-    const Key = category === "equities" ? req.originalUrl.replace(/^\//, "").replace(/\/$/, "") : getCacheKey(req);
-    if (!Key) {
+    const { country, ticker } = req.params;
+    if (!isSafePathSegment(country) || !isSafePathSegment(ticker)) {
       return res
         .status(400)
         .set({
@@ -179,8 +240,25 @@ export const handleImageResize = async (req: Request, res: Response) => {
         .send("BAD REQUEST");
     }
 
-    const resizeParams = extractParams(req);
-    // take the first 2 parts of the path
+    return await handleAssetImageResize(req, res, {
+      cacheKey: getRawUrlCacheKey(req),
+      assetsRoot: getSrcPath(country, "assets/equities"),
+      name: ticker,
+    });
+  } catch (err) {
+    console.error(`[error] [handleEquityImageResize] ${req.url}`, err);
+    return res
+      .status(500)
+      .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
+      .send("ERROR");
+  }
+};
+
+export const handleImageResize = async (req: Request, res: Response) => {
+  try {
+    // Equities tickers are case-sensitive in the asset filenames, so keep the raw request URL as the cache key.
+    const { category, name } = req.params;
+    const Key = category === "equities" ? getRawUrlCacheKey(req) : getCacheKey(req);
 
     if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
       console.error(`[error] [handleImageResize] ${req.originalUrl}`);
@@ -193,44 +271,16 @@ export const handleImageResize = async (req: Request, res: Response) => {
         .send("NOT FOUND");
     }
 
-    let _contentType: string;
-    let _payload: Buffer;
-    const cacheObject = await getCache(Key);
-
-    if (cacheObject) {
-      _contentType = cacheObject.ContentType;
-      _payload = cacheObject.Body;
-    } else {
-      let assetsRoot = ASSETS_ROOT_MAP[category];
-      if (!assetsRoot) {
-        return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
-      }
-
-      const image = await getImage(name, assetsRoot);
-      if (!image) {
-        return res
-          .status(404)
-          .set({
-            "Cache-Control": MAX_AGE_4_HOURS,
-            "CDN-Cache-Control": MAX_AGE_4_HOURS,
-          })
-          .send("NOT FOUND");
-      }
-
-      const { payload, contentType } = await resizeImage(resizeParams, image);
-      await setCache({ Key, Body: payload, ContentType: contentType });
-      _contentType = contentType;
-      _payload = payload;
+    const assetsRoot = ASSETS_ROOT_MAP[category];
+    if (!assetsRoot) {
+      return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
     }
 
-    return res
-      .status(200)
-      .set({
-        "Content-Type": _contentType,
-        "Cache-Control": MAX_AGE_1_YEAR,
-        "CDN-Cache-Control": MAX_AGE_1_YEAR,
-      })
-      .send(_payload);
+    return await handleAssetImageResize(req, res, {
+      cacheKey: Key,
+      assetsRoot,
+      name,
+    });
   } catch (err) {
     console.error(`[error] [handleImageResize] ${req.url}`, err);
     return res
