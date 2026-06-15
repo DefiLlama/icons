@@ -167,6 +167,7 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
 const getRawUrlCacheKey = (req: Request) => req.originalUrl.replace(/^\//, "").replace(/\/$/, "");
 
 const isSafePathSegment = (value: string) => value.length > 0 && value !== "." && value !== ".." && !/[\\/]/.test(value);
+const EQUITY_COUNTRY_FLAG_ASSET = "COUNTRY-FLAG";
 
 const handleAssetImageResize = async (
   req: Request,
@@ -247,6 +248,33 @@ export const handleEquityImageResize = async (req: Request, res: Response) => {
     });
   } catch (err) {
     console.error(`[error] [handleEquityImageResize] ${req.url}`, err);
+    return res
+      .status(500)
+      .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
+      .send("ERROR");
+  }
+};
+
+export const handleEquityCountryFlagResize = async (req: Request, res: Response) => {
+  try {
+    const { country } = req.params;
+    if (!isSafePathSegment(country)) {
+      return res
+        .status(400)
+        .set({
+          "Cache-Control": MAX_AGE_1_YEAR,
+          "CDN-Cache-Control": MAX_AGE_1_YEAR,
+        })
+        .send("BAD REQUEST");
+    }
+
+    return await handleAssetImageResize(req, res, {
+      cacheKey: getRawUrlCacheKey(req),
+      assetsRoot: getSrcPath(country, "assets/equities"),
+      name: EQUITY_COUNTRY_FLAG_ASSET,
+    });
+  } catch (err) {
+    console.error(`[error] [handleEquityCountryFlagResize] ${req.url}`, err);
     return res
       .status(500)
       .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
