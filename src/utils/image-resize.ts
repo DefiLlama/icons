@@ -153,7 +153,6 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   "agg_icons": "assets/agg_icons",
   "chains": "assets/chains",
   "directory": "assets/directory",
-  "equities": "assets/equities",
   "extension": "assets/extension",
   "liquidations": "assets/liquidations",
   "memes": "assets/memes",
@@ -167,7 +166,8 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
 const getRawUrlCacheKey = (req: Request) => req.originalUrl.replace(/^\//, "").replace(/\/$/, "");
 
 const isSafePathSegment = (value: string) => value.length > 0 && value !== "." && value !== ".." && !/[\\/]/.test(value);
-const EQUITY_COUNTRY_FLAG_ASSET = "COUNTRY-FLAG";
+const EQUITY_ASSETS_ROOT = path.join("assets/equities", "US");
+const EQUITY_FLAGS_ROOT = path.join("assets/equities", "flags");
 
 const handleAssetImageResize = async (
   req: Request,
@@ -241,9 +241,19 @@ export const handleEquityImageResize = async (req: Request, res: Response) => {
         .send("BAD REQUEST");
     }
 
+    if (country !== "US") {
+      return res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
+    }
+
     return await handleAssetImageResize(req, res, {
       cacheKey: getRawUrlCacheKey(req),
-      assetsRoot: getSrcPath(country, "assets/equities"),
+      assetsRoot: EQUITY_ASSETS_ROOT,
       name: ticker,
     });
   } catch (err) {
@@ -270,8 +280,8 @@ export const handleEquityCountryFlagResize = async (req: Request, res: Response)
 
     return await handleAssetImageResize(req, res, {
       cacheKey: getRawUrlCacheKey(req),
-      assetsRoot: getSrcPath(country, "assets/equities"),
-      name: EQUITY_COUNTRY_FLAG_ASSET,
+      assetsRoot: EQUITY_FLAGS_ROOT,
+      name: country,
     });
   } catch (err) {
     console.error(`[error] [handleEquityCountryFlagResize] ${req.url}`, err);
@@ -284,9 +294,8 @@ export const handleEquityCountryFlagResize = async (req: Request, res: Response)
 
 export const handleImageResize = async (req: Request, res: Response) => {
   try {
-    // Equities tickers are case-sensitive in the asset filenames, so keep the raw request URL as the cache key.
     const { category, name } = req.params;
-    const Key = category === "equities" ? getRawUrlCacheKey(req) : getCacheKey(req);
+    const Key = getCacheKey(req);
 
     if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
       console.error(`[error] [handleImageResize] ${req.originalUrl}`);
