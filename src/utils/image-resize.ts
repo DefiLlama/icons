@@ -168,6 +168,13 @@ const getRawUrlCacheKey = (req: Request) => req.originalUrl.replace(/^\//, "").r
 const isSafePathSegment = (value: string) => value.length > 0 && value !== "." && value !== ".." && !/[\\/]/.test(value);
 const EQUITY_ASSETS_ROOT = path.join("assets/equities", "US");
 const EQUITY_FLAGS_ROOT = path.join("assets/equities", "flags");
+const EQUITY_LOGO_ALIASES: Record<string, string> = {
+  "US:CONN": "CONCENTRA",
+};
+
+const getEquityLogoName = (country: string, ticker: string) => {
+  return EQUITY_LOGO_ALIASES[`${country.toUpperCase()}:${ticker.toUpperCase()}`] ?? ticker;
+};
 
 const handleAssetImageResize = async (
   req: Request,
@@ -254,7 +261,7 @@ export const handleEquityImageResize = async (req: Request, res: Response) => {
     return await handleAssetImageResize(req, res, {
       cacheKey: getRawUrlCacheKey(req),
       assetsRoot: EQUITY_ASSETS_ROOT,
-      name: ticker,
+      name: getEquityLogoName(country, ticker),
     });
   } catch (err) {
     console.error(`[error] [handleEquityImageResize] ${req.url}`, err);
