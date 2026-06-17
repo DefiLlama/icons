@@ -169,7 +169,7 @@ const isSafePathSegment = (value: string) => value.length > 0 && value !== "." &
 const EQUITY_ASSETS_ROOT = path.join("assets/equities", "US");
 const EQUITY_FLAGS_ROOT = path.join("assets/equities", "flags");
 const EQUITY_LOGO_ALIASES: Record<string, string> = {
-  "US:CONN": "CONCENTRA",
+  "US:CON": "CONCENTRA",
 };
 
 const getEquityLogoName = (country: string, ticker: string) => {
