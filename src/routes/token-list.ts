@@ -76,6 +76,7 @@ export const geckoChainsMap: { [chain: string]: number } = {
   katana: 747474,
   stable: 988,
   tempo: 4217,
+  robinhood: 4663,
 };
 
 export const TOKEN_LIST_CACHE_KEY = "token-list-v5";
