@@ -67,12 +67,16 @@ export const geckoChainsMap: { [chain: string]: number } = {
   "plume-mainnet": 98866,
   unichain: 130,
   scroll: 534352,
-	hyperliquid: 999,
-	monad: 143,
-	plasma: 9745,
-	ink: 57073,
-	'world-chain': 480,
-	megaeth: 4326,
+  hyperliquid: 999,
+  monad: 143,
+  plasma: 9745,
+  ink: 57073,
+  "world-chain": 480,
+  megaeth: 4326,
+  katana: 747474,
+  stable: 988,
+  tempo: 4217,
+  robinhood: 4663,
 };
 
 export const TOKEN_LIST_CACHE_KEY = "token-list-v5";
