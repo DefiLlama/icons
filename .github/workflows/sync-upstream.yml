@@ -1,0 +1,98 @@
+name: Sync from Upstream (read-only to upstream)
+
+on:
+  schedule:
+    # 每日 UTC 03:00 執行一次，按需調整或刪除
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+env:
+  # 一定要改成你要追蹤的上游 repo（或把這行改為用 secrets）
+  UPSTREAM_REPO: owner/upstream-repo
+  UPSTREAM_BRANCH: main
+  TARGET_BRANCH: main
+  SYNC_BRANCH_PREFIX: upstream-sync-
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write          # 推送分支到本 repo
+      pull-requests: write     # 建 PR（若你選擇自動建立 PR）
+      issues: write            # 在有衝突時建立 issue
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote and fetch
+        run: |
+          # 注意：這裡只用來 fetch，上游不會被寫入
+          git remote add upstream https://github.com/${{ env.UPSTREAM_REPO }}.git || true
+          git fetch --no-tags --prune upstream
+
+      - name: Create sync branch
+        id: make_branch
+        run: |
+          ts=$(date -u +'%Y%m%dT%H%M%SZ')
+          branch="${{ env.SYNC_BRANCH_PREFIX }}${ts}"
+          echo "SYNC_BRANCH=$branch" >> $GITHUB_ENV
+          git switch -c "$branch"
+
+      - name: Merge upstream into sync branch
+        id: try_merge
+        run: |
+          set -e
+          # 嘗試自動合併上游分支（保留合併 commit，保有歷史）
+          if git merge --no-edit --no-ff "upstream/${{ env.UPSTREAM_BRANCH }}"; then
+            echo "MERGE_OK=true" >> $GITHUB_ENV
+          else
+            # 若合併產生衝突，標記並中止（後面會建立 issue）
+            echo "MERGE_OK=false" >> $GITHUB_ENV
+          fi
+
+      - name: Handle merge conflicts
+        if: env.MERGE_OK == 'false'
+        run: |
+          # 中止合併並回到原狀
+          git merge --abort || true
+          echo "Found merge conflicts; aborting and creating issue for manual resolution."
+
+      - name: Push sync branch to origin
+        if: env.MERGE_OK == 'true'
+        run: |
+          git push origin "$SYNC_BRANCH"
+
+      - name: Create Pull Request for the sync branch
+        if: env.MERGE_OK == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.SYNC_BRANCH }}
+          base: ${{ env.TARGET_BRANCH }}
+          title: "Sync from upstream: ${{ env.UPSTREAM_REPO }}@${{ env.UPSTREAM_BRANCH }}"
+          body: |
+            This PR merges changes from upstream repository ${{ env.UPSTREAM_REPO }}:${{ env.UPSTREAM_BRANCH }} into ${{ env.TARGET_BRANCH }}.
+            This workflow only fetches from upstream and pushes only to this repository; it never pushes our changes to upstream.
+
+      - name: Create issue when merge failed (manual resolution required)
+        if: env.MERGE_OK == 'false'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const upstream = process.env.UPSTREAM_REPO;
+            const upstreamBranch = process.env.UPSTREAM_BRANCH;
+            const targetBranch = process.env.TARGET_BRANCH;
+            const title = `Upstream sync failed: merge conflicts from ${upstream}:${upstreamBranch}`;
+            const body = `Automatic sync from upstream (${upstream}:${upstreamBranch}) into ${owner}/${repo}:${targetBranch} failed due to merge conflicts.\n\nPlease fetch upstream and resolve conflicts manually. This workflow never pushes to the upstream repository — it only pushes to this repository.\n\nIf you want to attempt an automatic resolution strategy, update the workflow accordingly.`;
+            await github.issues.create({ owner, repo, title, body });
