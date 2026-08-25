@@ -160,6 +160,7 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   "misc": "assets/misc",
   "pegged": "assets/pegged",
   "protocols": "assets/protocols",
+  "pre-ipo": "assets/pre-ipo",
   "rwa": "assets/rwa",
   "stocks": "assets/stocks",
 };
