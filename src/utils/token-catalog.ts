@@ -11,7 +11,7 @@ export type CoinGeckoCatalog = {
   }>;
 };
 
-const CATALOG_KEY = "tokenlist/coingecko-catalog.json";
+const CATALOG_KEY = "tokenlist/coingecko-catalog-v2.json";
 
 export async function getCGTokenCatelog(): Promise<CoinGeckoCatalog> {
   const catalog = await cache.readCache(CATALOG_KEY, { readFromR2Cache: true });

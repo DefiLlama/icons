@@ -22,7 +22,7 @@ function load(file, dependencies) {
 function setup(catalog) {
   const reader = load("src/utils/token-catalog.ts", {
     "@defillama/sdk": { cache: { readCache: async (key, options) => {
-      assert.equal(key, "tokenlist/coingecko-catalog.json");
+      assert.equal(key, "tokenlist/coingecko-catalog-v2.json");
       assert.equal(options.readFromR2Cache, true);
       return catalog;
     } } },
