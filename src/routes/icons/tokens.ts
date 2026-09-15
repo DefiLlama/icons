@@ -128,28 +128,11 @@ const getGeckoLogoList = async () => {
   }
 
   const geckoLogoList = await compileGeckoLogoList();
-  if (Object.keys(geckoLogoList).length > 0) {
-    const geckoLogoPayload = JSON.stringify(geckoLogoList);
-    await setCache(
-      { Key: GECKO_LOGO_LIST_CACHE_KEY, Body: Buffer.from(geckoLogoPayload), ContentType: "application/json" },
-      ttlForEveryIntervalOf(3600),
-    );
-    return geckoLogoList;
-  }
-
-  const tokenList = await getTokenList();
-  const fallbackGeckoLogoList = tokenList.gecko ?? {};
-  if (Object.keys(fallbackGeckoLogoList).length > 0) {
-    await setCache(
-      {
-        Key: GECKO_LOGO_LIST_CACHE_KEY,
-        Body: Buffer.from(JSON.stringify(fallbackGeckoLogoList)),
-        ContentType: "application/json",
-      },
-      ttlForEveryIntervalOf(3600),
-    );
-  }
-  return fallbackGeckoLogoList;
+  await setCache(
+    { Key: GECKO_LOGO_LIST_CACHE_KEY, Body: Buffer.from(JSON.stringify(geckoLogoList)), ContentType: "application/json" },
+    ttlForEveryIntervalOf(3600),
+  );
+  return geckoLogoList;
 };
 
 const normalizeGeckoId = (value: string) => value.trim().toLowerCase();
