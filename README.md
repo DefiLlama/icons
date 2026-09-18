@@ -8,6 +8,12 @@ Exchange icons live in `assets/exchanges` and are addressed by canonical exchang
 /icons/exchanges/binance?w=48&h=48
 ```
 
+Crypto card icons live in `assets/crypto-cards` and are addressed by card id:
+
+```text
+/icons/crypto-cards/coinbase-one?w=48&h=48
+```
+
 ## Token catalog
 
 Token icons read `tokenlist/coingecko-catalog-v2.json` through SDK cache. The
