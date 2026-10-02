@@ -152,6 +152,7 @@ export const getCacheKeyFromUrl = (url: string, ignoreQueryParams = false) => {
 export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } = {
   "agg_icons": "assets/agg_icons",
   "chains": "assets/chains",
+  "crypto-cards": "assets/crypto-cards",
   "directory": "assets/directory",
   "exchanges": "assets/exchanges",
   "extension": "assets/extension",
@@ -160,6 +161,7 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
   "misc": "assets/misc",
   "pegged": "assets/pegged",
   "protocols": "assets/protocols",
+  "pre-ipo": "assets/pre-ipo",
   "rwa": "assets/rwa",
   "stocks": "assets/stocks",
 };

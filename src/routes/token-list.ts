@@ -1,3 +1,4 @@
+import { getCGTokenCatelog, CoinGeckoCatalog } from "../utils/token-catalog";
 import { Response } from "express";
 import { setCache, getCache } from "../utils/cache-client";
 import { forEveryIntervalOf, ttlForEveryIntervalOf } from "../utils/cache-control-helper";
@@ -79,50 +80,35 @@ export const geckoChainsMap: { [chain: string]: number } = {
   robinhood: 4663,
 };
 
-export const TOKEN_LIST_CACHE_KEY = "token-list-v5";
-export const GECKO_LOGO_LIST_CACHE_KEY = "token-gecko-logos-v1";
+export const TOKEN_LIST_CACHE_KEY = "token-list-v6";
+export const GECKO_LOGO_LIST_CACHE_KEY = "token-gecko-logos-v2";
 const TOKEN_LIST_FETCH_TIMEOUT_MS = 8000;
 
 const normalizeLogoUrl = (url: string) => url.replace("coin-images.coingecko.com", "assets.coingecko.com");
 const normalizeGeckoKey = (value: string) => value.trim().toLowerCase();
 
-const normalizeGeckoLogoDirectory = (geckoLogoList: Record<string, string>) => {
-  const geckoLogoDirectory: Record<string, string> = {};
-
-  for (const geckoId in geckoLogoList) {
-    if (!Object.hasOwn(geckoLogoList, geckoId)) continue;
-    const logoUrl = geckoLogoList[geckoId];
-    if (typeof geckoId !== "string" || typeof logoUrl !== "string" || !logoUrl) continue;
-    geckoLogoDirectory[normalizeGeckoKey(geckoId)] = normalizeLogoUrl(logoUrl);
+const getCatalogLogos = (catalog: CoinGeckoCatalog) => {
+  const logos: Record<string, string> = {};
+  for (const id in catalog.coins) {
+    const logoURI = catalog.coins[id].logoURI;
+    if (logoURI) logos[id] = normalizeLogoUrl(logoURI);
   }
-
-  return geckoLogoDirectory;
+  return logos;
 };
 
 export const compileGeckoLogoList = async (): Promise<Record<string, string>> => {
-  try {
-    const geckoLogoList = await fetchJsonWithTimeout<Record<string, string>>(
-      "https://defillama-datasets.llama.fi/tokenlist/logos.json",
-      TOKEN_LIST_FETCH_TIMEOUT_MS,
-    );
-    return normalizeGeckoLogoDirectory(geckoLogoList);
-  } catch (error) {
-    console.error("[error] [token-list] [gecko logos]");
-    console.error(error);
-    return {};
-  }
+  return getCatalogLogos(await getCGTokenCatelog());
 };
 
 export const compileTokenList = async (): Promise<TokenList> => {
-  const [uniList, sushiList, geckoList, ownList, geckoLogoList] = await Promise.allSettled([
+  const catalog = await getCGTokenCatelog();
+  const [uniList, sushiList, ownList] = await Promise.allSettled([
     fetchJsonWithTimeout<any>("https://tokens.uniswap.org/", TOKEN_LIST_FETCH_TIMEOUT_MS),
     fetchJsonWithTimeout<any>("https://token-list.sushi.com/", TOKEN_LIST_FETCH_TIMEOUT_MS),
-    fetchJsonWithTimeout<any>("https://defillama-datasets.llama.fi/tokenlist/all.json", TOKEN_LIST_FETCH_TIMEOUT_MS),
     fetchJsonWithTimeout<any>(
       "https://raw.githubusercontent.com/0xngmi/tokenlists/master/canto.json",
       TOKEN_LIST_FETCH_TIMEOUT_MS,
     ),
-    fetchJsonWithTimeout<any>("https://defillama-datasets.llama.fi/tokenlist/logos.json", TOKEN_LIST_FETCH_TIMEOUT_MS),
   ]);
 
   const oneInch = await Promise.allSettled(
@@ -146,34 +132,7 @@ export const compileTokenList = async (): Promise<TokenList> => {
 
   const logoDirectory: { [chain: number]: { [token: string]: string } } = {};
   const geckoPlatformDirectory: NonNullable<TokenList["geckoPlatforms"]> = {};
-  const geckoLogoDirectory: { [geckoId: string]: string } =
-    geckoLogoList.status === "fulfilled" && !Array.isArray(geckoLogoList.value)
-      ? normalizeGeckoLogoDirectory(geckoLogoList.value as Record<string, string>)
-      : {};
-  const geckoIdsByLogoUrl: Record<string, string[]> = {};
-  for (const geckoId in geckoLogoDirectory) {
-    const logoUrl = geckoLogoDirectory[geckoId];
-    if (!geckoIdsByLogoUrl[logoUrl]) {
-      geckoIdsByLogoUrl[logoUrl] = [];
-    }
-    geckoIdsByLogoUrl[logoUrl].push(geckoId);
-  }
-  const addGeckoPlatform = (geckoId: string, chainId: number, tokenAddress: string) => {
-    if (!geckoPlatformDirectory[geckoId]) {
-      geckoPlatformDirectory[geckoId] = [];
-    }
-
-    if (
-      !geckoPlatformDirectory[geckoId].some(
-        (platformToken) => platformToken.chainId === chainId && platformToken.tokenAddress === tokenAddress,
-      )
-    ) {
-      geckoPlatformDirectory[geckoId].push({
-        chainId,
-        tokenAddress,
-      });
-    }
-  };
+  const geckoLogoDirectory = getCatalogLogos(catalog);
 
   if (uniList.status === "fulfilled" && uniList.value.tokens) {
     uniList.value.tokens.forEach((token: { address: string; logoURI: string; chainId: number }) => {
@@ -233,40 +192,32 @@ export const compileTokenList = async (): Promise<TokenList> => {
     });
   }
 
-  if (geckoList.status === "fulfilled" && Array.isArray(geckoList.value)) {
-    geckoList.value.forEach((token: { name: string; logoURI: string; platforms: { [chain: string]: string } }) => {
-      if (token.platforms) {
-        for (const chain in token.platforms) {
-          if (token.platforms[chain] && geckoChainsMap[chain]) {
-            const chainId = geckoChainsMap[chain];
-            const address = token.platforms[chain].toLowerCase();
-
-            if (!logoDirectory[chainId]) {
-              logoDirectory[chainId] = {};
-            }
-
-            if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-              logoDirectory[chainId][address] = token.logoURI;
-            }
-
-            const geckoIds = token.logoURI ? geckoIdsByLogoUrl[normalizeLogoUrl(token.logoURI)] ?? [] : [];
-            for (const geckoId of geckoIds) {
-              addGeckoPlatform(geckoId, chainId, address);
-            }
-          }
-        }
+  for (const id in catalog.coins) {
+    const token = catalog.coins[id];
+    const platformTokens: NonNullable<TokenList["geckoPlatforms"]>[string] = [];
+    const seenPlatforms = new Set<string>();
+    for (const chain in token.platforms) {
+      const contract = token.platforms[chain];
+      const chainId = geckoChainsMap[chain];
+      if (!contract || !chainId) continue;
+      const address = contract.toLowerCase();
+      if (!logoDirectory[chainId]) logoDirectory[chainId] = {};
+      if (!logoDirectory[chainId][address] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+        logoDirectory[chainId][address] = token.logoURI;
       }
-
-      const name = normalizeGeckoKey(token.name);
-
-      if (!logoDirectory[0]) {
-        logoDirectory[0] = {};
+      const platformKey = `${chainId}:${address}`;
+      if (!seenPlatforms.has(platformKey)) {
+        seenPlatforms.add(platformKey);
+        platformTokens.push({ chainId, tokenAddress: address });
       }
+    }
+    if (platformTokens.length) geckoPlatformDirectory[id] = platformTokens;
 
-      if (!logoDirectory[0][name] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
-        logoDirectory[0][name] = token.logoURI;
-      }
-    });
+    const name = normalizeGeckoKey(token.name);
+    if (!logoDirectory[0]) logoDirectory[0] = {};
+    if (!logoDirectory[0][name] && token.logoURI && !token.logoURI.startsWith("ipfs://")) {
+      logoDirectory[0][name] = token.logoURI;
+    }
   }
 
   // normalize coingecko CDN domain — coin-images.coingecko.com is undocumented
