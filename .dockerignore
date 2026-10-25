@@ -1,0 +1,33 @@
+# Dependencies (reinstalled inside the image)
+node_modules
+
+# Build output (compiled inside the image)
+dist
+
+# Git / CI
+.git
+.github
+
+# Local env + secrets (example.env is kept)
+.env
+.env.*
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Tests / docs / editor
+tests
+README.md
+.prettierrc
+.vscode
+.idea
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
