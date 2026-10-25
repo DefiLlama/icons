@@ -32,6 +32,7 @@ const chainIconUrls: { [chainId: number]: string } = {
   1: "ethereum",
   56: "binance",
   42161: "ethereum",
+  42424242: "genlayer",
   10: "ethereum",
   66: "okexchain",
   288: "ethereum",
