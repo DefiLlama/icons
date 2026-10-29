@@ -52,13 +52,13 @@ const sluggify = (input) => {
 };
 
 const sharpMock = function(buffer) {
-  return { 
-    metadata: async () => ({ format: "png" }), 
-    resize: function() { return sharpMock; }, 
-    toBuffer: async () => Buffer.from(""),
-    gif: function() { return sharpMock; },
-    png: function() { return sharpMock; },
-    webp: function() { return sharpMock; },
+  return {
+    metadata: async () => ({ format: "png" }),
+    resize() { return this; },
+    toBuffer: async () => Buffer.from("mock image"),
+    gif() { return this; },
+    png() { return this; },
+    webp() { return this; },
   };
 };
 sharpMock.fit = { contain: "contain", cover: "cover", fill: "fill", inside: "inside", outside: "outside" };
@@ -81,11 +81,11 @@ test("handleImageResize rejects path traversal in name param", async () => {
 
   const { req, res } = makeReqRes();
 
-  // Valid name should not throw from validation (will fail later on missing file, but validation passes)
+  // A valid name should reach the image handler and return a resized image response.
   req.params = { category: 'protocols', name: 'valid-name' };
-  await assert.doesNotReject(async () => {
-    await handleImageResize(req, res);
-  });
+  await handleImageResize(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, Buffer.from("mock image"));
 
   // Path traversal attempts (decoded, as Express would provide them)
   const traversalAttempts = [
