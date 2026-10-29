@@ -15,7 +15,7 @@ function load(file, dependencies) {
     },
   }).outputText;
   const module = { exports: {} };
-  vm.runInNewContext(source, { module, exports: module.exports, console, path,
+  vm.runInNewContext(source, { module, exports: module.exports, console, path, URL,
     require: name => {
       if (!(name in dependencies)) {
         if (name === "path") return path;
@@ -29,7 +29,12 @@ function load(file, dependencies) {
 }
 
 function makeReqRes() {
-  const req = { params: {}, originalUrl: '/icons/protocols/test', protocol: 'https', get: () => 'localhost' };
+  const req = { 
+    params: {}, 
+    originalUrl: '/icons/protocols/test', 
+    protocol: 'https', 
+    get: (header) => header === 'host' ? 'localhost' : undefined 
+  };
   const res = { 
     statusCode: 200, 
     status(code) { this.statusCode = code; return this; },
@@ -39,12 +44,35 @@ function makeReqRes() {
   return { req, res };
 }
 
+const sluggify = (input) => {
+  const slug = decodeURIComponent(input)
+    .toLowerCase()
+    .replace(/[^\w\/]+/g, "-");
+  return slug.replace(/^-+/, "").replace(/-+$/, "");
+};
+
+const sharpMock = function(buffer) {
+  return { 
+    metadata: async () => ({ format: "png" }), 
+    resize: function() { return sharpMock; }, 
+    toBuffer: async () => Buffer.from(""),
+    gif: function() { return sharpMock; },
+    png: function() { return sharpMock; },
+    webp: function() { return sharpMock; },
+  };
+};
+sharpMock.fit = { contain: "contain", cover: "cover", fill: "fill", inside: "inside", outside: "outside" };
+
 test("handleImageResize rejects path traversal in name param", async () => {
   const { handleImageResize } = load("src/utils/image-resize.ts", {
     dotenv: { config: () => {} },
     express: { Request: class {}, Response: class {} },
-    "sharp": () => ({ metadata: async () => ({}), resize: () => {}, toBuffer: async () => Buffer.from("") }),
-    "./cache-client": { getCache: async () => null, setCache: async () => {} },
+    "sharp": sharpMock,
+    "./cache-client": { 
+      getCache: async () => null, 
+      setCache: async () => {}, 
+      sluggify 
+    },
     "./cache-control-helper": { MAX_AGE_1_YEAR: "1y", MAX_AGE_4_HOURS: "4h", MAX_AGE_10_MINUTES: "10m" },
     "./async-timeout": { fetchBufferWithTimeout: async () => ({ buffer: Buffer.from(""), contentType: "image/png", ok: true, status: 200 }) },
     "path": path,
@@ -59,12 +87,12 @@ test("handleImageResize rejects path traversal in name param", async () => {
     await handleImageResize(req, res);
   });
 
-  // Path traversal attempts should be rejected with 400
+  // Path traversal attempts (decoded, as Express would provide them)
   const traversalAttempts = [
     '..',
     '../..',
-    '..%2F..',
-    '..%2F..%2Fetc%2Fpasswd',
+    '../..',  // ..%2F.. decoded
+    '../../etc/passwd',  // ..%2F..%2Fetc%2Fpasswd decoded
     '..\\..\\windows',
     'valid/../traversal',
     '.',
@@ -84,8 +112,12 @@ test("handleImageResize rejects invalid category", async () => {
   const { handleImageResize } = load("src/utils/image-resize.ts", {
     dotenv: { config: () => {} },
     express: { Request: class {}, Response: class {} },
-    "sharp": () => ({ metadata: async () => ({}), resize: () => {}, toBuffer: async () => Buffer.from("") }),
-    "./cache-client": { getCache: async () => null, setCache: async () => {} },
+    "sharp": sharpMock,
+    "./cache-client": { 
+      getCache: async () => null, 
+      setCache: async () => {}, 
+      sluggify 
+    },
     "./cache-control-helper": { MAX_AGE_1_YEAR: "1y", MAX_AGE_4_HOURS: "4h", MAX_AGE_10_MINUTES: "10m" },
     "./async-timeout": { fetchBufferWithTimeout: async () => ({ buffer: Buffer.from(""), contentType: "image/png", ok: true, status: 200 }) },
     "path": path,
