@@ -319,6 +319,11 @@ export const handleImageResize = async (req: Request, res: Response) => {
     }
 
     const assetsRoot = ASSETS_ROOT_MAP[category];
+    // Validate name segment to prevent path traversal (CVE-style)
+    if (!isSafePathSegment(name)) {
+      return res.status(400).send("BAD REQUEST");
+    }
+
     if (!assetsRoot) {
       return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
     }
