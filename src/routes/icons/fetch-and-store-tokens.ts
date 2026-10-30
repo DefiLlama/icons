@@ -46,9 +46,10 @@ export default async (req: Request, res: Response) => {
       }
     }
 
-    return "success";
+    return res.status(200).send("success");
   } catch (error: unknown) {
-    return JSON.stringify(error);
+    console.error("[error] [fetch-and-store-tokens]", error);
+    return res.status(500).send("ERROR");
   }
 };
 
