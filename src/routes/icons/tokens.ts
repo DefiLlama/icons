@@ -141,7 +141,8 @@ const getLocalTokenIcon = async (tokenId: string, assetsRoots: string[]) => {
   for (const assetsRoot of assetsRoots) {
     try {
       if (!existsSync(assetsRoot)) continue;
-      if (existsSync(getSrcPath(tokenId, assetsRoot))) {
+      const srcPath = getSrcPath(tokenId, assetsRoot);
+      if (srcPath && existsSync(srcPath)) {
         return getImage(tokenId, assetsRoot);
       }
     } catch (error) {
