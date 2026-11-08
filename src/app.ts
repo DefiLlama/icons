@@ -37,6 +37,14 @@ const logger = (req: Request, res: Response, next: NextFunction) => {
 app.use(logger);
 app.use(express.json());
 
+// Every icon is public, so any site may read one, as defillama.com does to draw icons into chart images it exports.
+// A fixed `*`, never the request's origin, keeps one cached copy right for every site. The POST admin routes stay
+// guarded by their Authorization secret and do not get it.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === "GET" || req.method === "HEAD") res.set("Access-Control-Allow-Origin", "*");
+  next();
+});
+
 app.use(
   express.static("public", {
     setHeaders: (res) => {
