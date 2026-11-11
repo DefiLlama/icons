@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config();
 
-import { readdirSync } from "fs";
+import { readdirSync, realpathSync } from "fs";
 import path from "path";
 import type { FitEnum } from "sharp";
 import sharp from "sharp";
@@ -79,7 +79,7 @@ export const resizeImageBuffer = async (params: ResizeParams, buffer: Buffer) =>
     contentType: isGIF ? "image/gif" : format === "png" ? "image/png" : "image/webp",
     payload,
   };
-};
+}
 
 export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
   const { width, height, fit, format } = params;
@@ -114,7 +114,7 @@ export const resizeImage = async (params: ResizeParams, image: sharp.Sharp) => {
     contentType: isGIF ? "image/gif" : format === "png" ? "image/png" : "image/webp",
     payload,
   };
-};
+}
 
 export const getCacheKey = (req: Request, ignoreQueryParams = false) => {
   try {
@@ -168,7 +168,22 @@ export const ASSETS_ROOT_MAP: { [key: string]: `assets/${string}` | undefined } 
 
 const getRawUrlCacheKey = (req: Request) => req.originalUrl.replace(/^\//, "").replace(/\/$/, "");
 
-const isSafePathSegment = (value: string) => value.length > 0 && value !== "." && value !== ".." && !/[\\/]/.test(value);
+/**
+ * Validates a single path segment to prevent path traversal.
+ * Checks for: empty, ".", "..", path separators, double-encoding, encoded dots.
+ * Express auto-decodes URL params, so we check the decoded value.
+ */
+export const isSafePathSegment = (value: string): boolean => {
+  if (!value || value.length === 0) return false;
+  if (value === "." || value === "..") return false;
+  if (/[\\/]/.test(value)) return false;
+  // Detect double-encoding: %25 = encoded '%', so %252f = encoded '/'
+  if (/%25/i.test(value)) return false;
+  // Detect encoded dots: %2e = encoded '.', so %2e%2e = '..'
+  if (/%2e%2e/i.test(value)) return false;
+  return true;
+};
+
 const EQUITY_ASSETS_ROOT = path.join("assets/equities", "US");
 const EQUITY_FLAGS_ROOT = path.join("assets/equities", "flags");
 const EQUITY_LOGO_ALIASES: Record<string, string> = {
@@ -177,6 +192,47 @@ const EQUITY_LOGO_ALIASES: Record<string, string> = {
 
 const getEquityLogoName = (country: string, ticker: string) => {
   return EQUITY_LOGO_ALIASES[`${country.toUpperCase()}:${ticker.toUpperCase()}`] ?? ticker;
+};
+
+export const handleImageResize = async (req: Request, res: Response) => {
+  try {
+    const { category, name } = req.params;
+    const Key = getCacheKey(req);
+
+    if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
+      console.error(`[error] [handleImageResize] ${req.originalUrl}`);
+      return res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
+    }
+
+    const assetsRoot = ASSETS_ROOT_MAP[category];
+    
+    // Layer 1: Segment validation (fast reject)
+    if (!isSafePathSegment(name)) {
+      return res.status(400).send("BAD REQUEST");
+    }
+
+    if (!assetsRoot) {
+      return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
+    }
+
+    return await handleAssetImageResize(req, res, {
+      cacheKey: Key,
+      assetsRoot,
+      name,
+    });
+  } catch (err) {
+    console.error(`[error] [handleImageResize] ${req.url}`, err);
+    return res
+      .status(500)
+      .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
+      .send("ERROR");
+  }
 };
 
 const handleAssetImageResize = async (
@@ -221,11 +277,10 @@ const handleAssetImageResize = async (
         })
         .send("NOT FOUND");
     }
-
-    const { payload, contentType } = await resizeImage(resizeParams, image);
-    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
+    const { payload, contentType } = await resizeImageBuffer(resizeParams, await image.toBuffer());
     _contentType = contentType;
     _payload = payload;
+    await setCache({ Key: cacheKey, Body: payload, ContentType: contentType });
   }
 
   return res
@@ -302,41 +357,6 @@ export const handleEquityCountryFlagResize = async (req: Request, res: Response)
   }
 };
 
-export const handleImageResize = async (req: Request, res: Response) => {
-  try {
-    const { category, name } = req.params;
-    const Key = getCacheKey(req);
-
-    if (!Object.hasOwn(ASSETS_ROOT_MAP, category)) {
-      console.error(`[error] [handleImageResize] ${req.originalUrl}`);
-      return res
-        .status(404)
-        .set({
-          "Cache-Control": MAX_AGE_4_HOURS,
-          "CDN-Cache-Control": MAX_AGE_4_HOURS,
-        })
-        .send("NOT FOUND");
-    }
-
-    const assetsRoot = ASSETS_ROOT_MAP[category];
-    if (!assetsRoot) {
-      return res.status(200).send("TOKEN ICONS NOT SUPPORTED YET");
-    }
-
-    return await handleAssetImageResize(req, res, {
-      cacheKey: Key,
-      assetsRoot,
-      name,
-    });
-  } catch (err) {
-    console.error(`[error] [handleImageResize] ${req.url}`, err);
-    return res
-      .status(500)
-      .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
-      .send("ERROR");
-  }
-};
-
 // cacheKey includes both the path and query params
 export const getResizeImageResponse = async (cacheKey: string, params: ResizeParams, buffer: Buffer) => {
   try {
@@ -375,23 +395,77 @@ export const getResizeImageResponse = async (cacheKey: string, params: ResizePar
   }
 };
 
-export function getSrcPath(src: string, assetsRoot: string) {
-  let srcPath = null;
-
-  readdirSync(assetsRoot).forEach((file) => {
-    const fileName = file.split(".");
-
-    fileName.pop();
-
-    if (fileName.join(".").toLowerCase() === src.toLowerCase()) {
-      srcPath = path.join(assetsRoot, file);
-    }
-  });
-
-  if (!srcPath) {
-    srcPath = path.join(assetsRoot, src);
+/**
+ * Resolves the source path with full containment check.
+ * - Resolves symlinks with realpathSync
+ * - Verifies resolved path is within assetsRoot using canonical paths
+ * - Falls back to direct join only if file exists in directory listing
+ */
+function resolveSrcPath(src: string, assetsRoot: string): string | null {
+  // Canonicalize the assets root (resolve symlinks)
+  const canonicalRoot = realpathSync(assetsRoot);
+  
+  // First, try to find the file in the directory listing (case-insensitive)
+  let srcPath: string | null = null;
+  try {
+    readdirSync(assetsRoot).forEach((file) => {
+      const fileName = file.split(".");
+      fileName.pop();
+      if (fileName.join(".").toLowerCase() === src.toLowerCase()) {
+        srcPath = path.join(assetsRoot, file);
+      }
+    });
+  } catch {
+    // Directory doesn't exist or isn't readable
+    return null;
   }
 
+  // If not found in directory, construct path and validate containment
+  if (!srcPath) {
+    const candidatePath = path.join(assetsRoot, src);
+    
+    // Resolve the full path (resolves symlinks)
+    let canonicalCandidate: string;
+    try {
+      canonicalCandidate = realpathSync(candidatePath);
+    } catch {
+      // Path doesn't exist or isn't accessible
+      return null;
+    }
+    
+    // CRITICAL: Containment check - ensure resolved path is within assetsRoot
+    const canonicalRoot = realpathSync(assetsRoot);
+    const rootWithSep = canonicalRoot + path.sep;
+    
+    if (!canonicalCandidate.startsWith(rootWithSep) && canonicalCandidate !== canonicalRoot) {
+      // Path escapes the assets root - traversal attempt
+      return null;
+    }
+    
+    srcPath = candidatePath;
+  }
+
+  // Final containment verification on the resolved path
+  try {
+    const canonicalSrc = realpathSync(srcPath);
+    const canonicalRoot = realpathSync(assetsRoot);
+    const rootWithSep = canonicalRoot + path.sep;
+    
+    if (!canonicalSrc.startsWith(rootWithSep) && canonicalSrc !== canonicalRoot) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return srcPath;
+}
+
+export function getSrcPath(src: string, assetsRoot: string) {
+  const srcPath = resolveSrcPath(src, assetsRoot);
+  if (!srcPath) {
+    return null;
+  }
   return srcPath;
 }
 
@@ -399,6 +473,9 @@ export const getImage = async (src: string, assetsRoot?: string) => {
   try {
     if (assetsRoot) {
       const srcPath = getSrcPath(src, assetsRoot);
+      if (!srcPath) {
+        return null;
+      }
       const image = sharp(srcPath);
       await image.metadata();
       return image;
@@ -419,16 +496,7 @@ export const getImage = async (src: string, assetsRoot?: string) => {
       return null;
     }
   } catch (error) {
-    console.error(`[error] [getImage]`, error);
+    console.error(`[error] [getImage] ${src}`, error);
     return null;
-  }
-};
-
-export const isImage = async (buffer: Buffer) => {
-  try {
-    await sharp(buffer).metadata();
-    return true;
-  } catch (err) {
-    return false;
   }
 };
