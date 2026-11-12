@@ -9,7 +9,12 @@ import purgeHandler from "./routes/purge";
 import tokenListHandler from "./routes/token-list";
 import tokensHandler, { geckoTokensHandler } from "./routes/icons/tokens";
 import fetchAndStoreTokensHandler from "./routes/icons/fetch-and-store-tokens";
-import { handleEquityCountryFlagResize, handleEquityImageResize, handleImageResize } from "./utils/image-resize";
+import {
+  handleEquityCountryFlagResize,
+  handleEquityImageResize,
+  handleImageResize,
+  handleRwaAssetImageResize,
+} from "./utils/image-resize";
 import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS } from "./utils/cache-control-helper";
 
 const app = express();
@@ -73,6 +78,7 @@ app.get("/icons/notfound", (_: Request, res: Response) => {
 });
 app.get("/icons/equities/:country/flag", handleEquityCountryFlagResize);
 app.get("/icons/equities/:country/:ticker", handleEquityImageResize);
+app.get("/icons/rwa-assets/:slug", handleRwaAssetImageResize);
 app.get("/icons/:category/:name", handleImageResize);
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);

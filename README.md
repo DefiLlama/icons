@@ -14,6 +14,23 @@ Crypto card icons live in `assets/crypto-cards` and are addressed by card id:
 /icons/crypto-cards/coinbase-one?w=48&h=48
 ```
 
+RWA platform icons are addressed by platform slug. A platform whose art is filed under another name gets an
+entry in `RWA_PLATFORM_LOGOS` (`src/utils/image-resize.ts`):
+
+```text
+/icons/rwa/trade-xyz?w=48&h=48
+```
+
+The underlying asset of an RWA perp is addressed by the slug of its reference asset name (lowercase, every run of
+non-word characters becomes one `-`, as the app's `rwaSlug`). `assets/rwa-assets.json` maps each slug to art that
+already lives elsewhere (`equities/US/TSLA`, `stocks/meta`, `rwa/samsung`), so one company keeps one image. A new
+reference asset is one line in that file; add art to its own folder first, never a copy. A slug with no entry
+answers 404. Purge `/icons/rwa-assets/<slug>` after changing an entry, because responses are cached for a year.
+
+```text
+/icons/rwa-assets/tesla-inc?w=48&h=48
+```
+
 ## Token catalog
 
 Token icons read `tokenlist/coingecko-catalog-v2.json` through SDK cache. The
