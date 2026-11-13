@@ -170,8 +170,8 @@ importers:
         specifier: 3.335.0
         version: 3.335.0
       '@defillama/sdk':
-        specifier: 5.0.250
-        version: 5.0.250(debug@4.4.3)(typescript@5.0.4)
+        specifier: 5.0.251
+        version: 5.0.251(debug@4.4.3)(typescript@5.0.4)
       '@sentry/node':
         specifier: 7.53.1
         version: 7.53.1
@@ -614,8 +614,8 @@ packages:
     resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
     engines: {node: '>=18.0.0'}
 
-  '@defillama/sdk@5.0.250':
-    resolution: {integrity: sha512-h6CidP6PlYJ1Q2j7e3GBC3MzbzhgkLpKC6jAxENyAmCTMBZi+GGl+5wXvLx2g3JLo7zUkHqxwRqthJ2HqAJ9+Q==}
+  '@defillama/sdk@5.0.251':
+    resolution: {integrity: sha512-GpFNpRe4v2WrfVKxlzx5nnVBvgEknciX19TDu+IpbbnS79uoA6SBDzBwJdiXPBDnXBdEYvpLuneYcYqi3zwdmQ==}
     peerDependencies:
       '@solana/web3.js': '>=1.73.0'
     peerDependenciesMeta:
@@ -2274,7 +2274,7 @@ snapshots:
 
   '@aws/lambda-invoke-store@0.3.0': {}
 
-  '@defillama/sdk@5.0.250(debug@4.4.3)(typescript@5.0.4)':
+  '@defillama/sdk@5.0.251(debug@4.4.3)(typescript@5.0.4)':
     dependencies:
       '@aws-sdk/client-s3': 3.1155.0
       '@elastic/elasticsearch': 8.19.2
