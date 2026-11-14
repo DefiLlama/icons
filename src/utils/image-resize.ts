@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config();
 
-import { readdirSync } from "fs";
+import { readdirSync, readFileSync } from "fs";
 import path from "path";
 import type { FitEnum } from "sharp";
 import sharp from "sharp";
@@ -175,6 +175,32 @@ const EQUITY_LOGO_ALIASES: Record<string, string> = {
   "US:CON": "CONCENTRA",
 };
 
+// The app builds every RWA platform logo as /icons/rwa/<platform slug>; these platforms' art is filed under another name.
+const RWA_PLATFORM_LOGOS: Record<string, string> = {
+  "asa-gold": "rwa/asa.gold",
+  "asseto": "rwa/asseto-finance",
+  "coinbase-international-exchange": "rwa/coinbase-international",
+  "hibachi": "protocols/hibachi",
+  "j-p-morgan": "rwa/j.p.-morgan",
+  "j-p-morgan-asset-management": "rwa/j.p.-morgan-asset-management",
+  "re-al": "rwa/re.al",
+  // rwa/robinhood holds the US Steel mark.
+  "robinhood": "rwa/anchored-ahood",
+  "trade-xyz": "rwa/tradexyz",
+  "uranium-io": "rwa/uranium.io",
+  "usd-ai": "rwa/usd.ai",
+  "wise-telecom-nodes": "protocols/wise-token",
+};
+
+// An RWA perp's underlying asset, keyed by the slug of its reference asset name, points at art already filed
+// elsewhere (equities, stocks, rwa), so one company keeps one image.
+const RWA_ASSET_LOGOS: Record<string, string> = JSON.parse(readFileSync("assets/rwa-assets.json", "utf8"));
+
+const aliasedAsset = (target: string) => {
+  const slash = target.lastIndexOf("/");
+  return { assetsRoot: path.join("assets", target.slice(0, slash)), name: target.slice(slash + 1) };
+};
+
 const getEquityLogoName = (country: string, ticker: string) => {
   return EQUITY_LOGO_ALIASES[`${country.toUpperCase()}:${ticker.toUpperCase()}`] ?? ticker;
 };
@@ -302,6 +328,32 @@ export const handleEquityCountryFlagResize = async (req: Request, res: Response)
   }
 };
 
+export const handleRwaAssetImageResize = async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    if (!Object.hasOwn(RWA_ASSET_LOGOS, slug)) {
+      return res
+        .status(404)
+        .set({
+          "Cache-Control": MAX_AGE_4_HOURS,
+          "CDN-Cache-Control": MAX_AGE_4_HOURS,
+        })
+        .send("NOT FOUND");
+    }
+
+    return await handleAssetImageResize(req, res, {
+      cacheKey: getRawUrlCacheKey(req),
+      ...aliasedAsset(RWA_ASSET_LOGOS[slug]),
+    });
+  } catch (err) {
+    console.error(`[error] [handleRwaAssetImageResize] ${req.url}`, err);
+    return res
+      .status(500)
+      .set({ "Cache-Control": MAX_AGE_10_MINUTES, "CDN-Cache-Control": MAX_AGE_10_MINUTES })
+      .send("ERROR");
+  }
+};
+
 export const handleImageResize = async (req: Request, res: Response) => {
   try {
     const { category, name } = req.params;
@@ -316,6 +368,10 @@ export const handleImageResize = async (req: Request, res: Response) => {
           "CDN-Cache-Control": MAX_AGE_4_HOURS,
         })
         .send("NOT FOUND");
+    }
+
+    if (category === "rwa" && Object.hasOwn(RWA_PLATFORM_LOGOS, name)) {
+      return await handleAssetImageResize(req, res, { cacheKey: Key, ...aliasedAsset(RWA_PLATFORM_LOGOS[name]) });
     }
 
     const assetsRoot = ASSETS_ROOT_MAP[category];

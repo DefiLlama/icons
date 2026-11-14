@@ -9,7 +9,12 @@ import purgeHandler from "./routes/purge";
 import tokenListHandler from "./routes/token-list";
 import tokensHandler, { geckoTokensHandler } from "./routes/icons/tokens";
 import fetchAndStoreTokensHandler from "./routes/icons/fetch-and-store-tokens";
-import { handleEquityCountryFlagResize, handleEquityImageResize, handleImageResize } from "./utils/image-resize";
+import {
+  handleEquityCountryFlagResize,
+  handleEquityImageResize,
+  handleImageResize,
+  handleRwaAssetImageResize,
+} from "./utils/image-resize";
 import { MAX_AGE_1_YEAR, MAX_AGE_4_HOURS } from "./utils/cache-control-helper";
 
 const app = express();
@@ -36,6 +41,14 @@ const logger = (req: Request, res: Response, next: NextFunction) => {
 };
 app.use(logger);
 app.use(express.json());
+
+// Every icon is public, so any site may read one, as defillama.com does to draw icons into chart images it exports.
+// A fixed `*`, never the request's origin, keeps one cached copy right for every site. The POST admin routes stay
+// guarded by their Authorization secret and do not get it.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === "GET" || req.method === "HEAD") res.set("Access-Control-Allow-Origin", "*");
+  next();
+});
 
 app.use(
   express.static("public", {
@@ -65,6 +78,7 @@ app.get("/icons/notfound", (_: Request, res: Response) => {
 });
 app.get("/icons/equities/:country/flag", handleEquityCountryFlagResize);
 app.get("/icons/equities/:country/:ticker", handleEquityImageResize);
+app.get("/icons/rwa-assets/:slug", handleRwaAssetImageResize);
 app.get("/icons/:category/:name", handleImageResize);
 
 app.post("/fetch-and-store-tokens", fetchAndStoreTokensHandler);
