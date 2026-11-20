@@ -3,4 +3,4 @@ allowBuilds:
   sharp: true
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
-  - '@defillama/sdk@5.0.251'
+  - '@defillama/sdk'
