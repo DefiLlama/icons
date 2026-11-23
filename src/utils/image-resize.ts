@@ -183,6 +183,11 @@ const RWA_PLATFORM_LOGOS: Record<string, string> = {
   "hibachi": "protocols/hibachi",
   "j-p-morgan": "rwa/j.p.-morgan",
   "j-p-morgan-asset-management": "rwa/j.p.-morgan-asset-management",
+  // Every Lend opLEND asset shares the official opLend logo.
+  "oplend-1": "rwa/oplend",
+  "oplend-2": "rwa/oplend",
+  "oplend-3": "rwa/oplend",
+  "oplend-4": "rwa/oplend",
   "re-al": "rwa/re.al",
   // rwa/robinhood holds the US Steel mark.
   "robinhood": "rwa/anchored-ahood",
