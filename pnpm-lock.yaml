@@ -170,8 +170,8 @@ importers:
         specifier: 3.335.0
         version: 3.335.0
       '@defillama/sdk':
-        specifier: 5.0.253
-        version: 5.0.253(debug@4.4.3)(typescript@5.0.4)
+        specifier: 5.0.254
+        version: 5.0.254(@opentelemetry/api@1.10.0)(debug@4.4.3)(typescript@5.0.4)
       '@sentry/node':
         specifier: 7.53.1
         version: 7.53.1
@@ -614,8 +614,8 @@ packages:
     resolution: {integrity: sha512-sl4Bm6yiMNYrZKkqqDFWN0UfnWhlS8ivKxrYl+6t0gCLrqr8y3B2IqZZbFRkfaVVp7C/baApyh71P+LeE1A2sQ==}
     engines: {node: '>=18.0.0'}
 
-  '@defillama/sdk@5.0.253':
-    resolution: {integrity: sha512-68k79TvTPGgBXK00JjJUZCgZOBNFqdQO/3i1JyjCFt5n4o2Y+9qrXaJ+Vh6zF5WqrngX2f6MWrlc1T4tgVvE1g==}
+  '@defillama/sdk@5.0.254':
+    resolution: {integrity: sha512-lzKuN27giTCEYIjQSY0piAWUj+kbip2EIMxyFWqsZU0eiWtiVe204D5+GFUuMRJL9QfuPkSkFCp5FXJS4vktDw==}
     peerDependencies:
       '@solana/web3.js': '>=1.73.0'
     peerDependenciesMeta:
@@ -665,6 +665,18 @@ packages:
   '@opentelemetry/semantic-conventions@1.43.0':
     resolution: {integrity: sha512-eSYWTm620tTk45EKSedaUL8MFYI8hW164hIXsgIHyxu3VobUB3fFCu5t0hQby6OoWRPsG1KkKUG2M5UadiLiVg==}
     engines: {node: '>=14'}
+
+  '@redis/client@6.3.1':
+    resolution: {integrity: sha512-masbfVKULdoAofwddepZxRhWa4w6zvBHn6TRn90TRPrRkVIlGCur3pFqwWaCbMxtYI9twepkz63e/T/tEH8GjA==}
+    engines: {node: '>= 20.0.0'}
+    peerDependencies:
+      '@node-rs/xxhash': ^1.1.0
+      '@opentelemetry/api': '>=1 <2'
+    peerDependenciesMeta:
+      '@node-rs/xxhash':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
 
   '@scure/base@1.2.6':
     resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
@@ -2274,10 +2286,11 @@ snapshots:
 
   '@aws/lambda-invoke-store@0.3.0': {}
 
-  '@defillama/sdk@5.0.253(debug@4.4.3)(typescript@5.0.4)':
+  '@defillama/sdk@5.0.254(@opentelemetry/api@1.10.0)(debug@4.4.3)(typescript@5.0.4)':
     dependencies:
       '@aws-sdk/client-s3': 3.1155.0
       '@elastic/elasticsearch': 8.19.2
+      '@redis/client': 6.3.1(@opentelemetry/api@1.10.0)
       '@supercharge/promise-pool': 2.4.0
       axios: 1.20.0(debug@4.4.3)
       ethers: 6.17.0
@@ -2286,6 +2299,8 @@ snapshots:
       tron-format-address: 0.1.12
       viem: 2.57.10(typescript@5.0.4)
     transitivePeerDependencies:
+      - '@node-rs/xxhash'
+      - '@opentelemetry/api'
       - bufferutil
       - debug
       - supports-color
@@ -2338,6 +2353,10 @@ snapshots:
       '@opentelemetry/semantic-conventions': 1.43.0
 
   '@opentelemetry/semantic-conventions@1.43.0': {}
+
+  '@redis/client@6.3.1(@opentelemetry/api@1.10.0)':
+    optionalDependencies:
+      '@opentelemetry/api': 1.10.0
 
   '@scure/base@1.2.6': {}
 
